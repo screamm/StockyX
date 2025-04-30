@@ -2,24 +2,31 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { debounce } from 'lodash';
 import { 
   ChevronDown, ChevronUp, RefreshCw, Search, Star, 
-  BarChart2, Newspaper, AlertTriangle, Clock 
+  BarChart2, Newspaper, AlertTriangle, Clock, Home, SlidersHorizontal, List
 } from 'lucide-react';
 
 import {
   fetchStockQuote,
   fetchDailyHistory,
   fetchCompanyOverview,
-  fetchNews
+  fetchNews,
+  fetchExtendedCompanyInfo
 } from '../services/apiService';
 
 import StockRow from './StockRow';
 import StockChart from './StockChart';
 import StockInfo from './StockInfo';
 import NewsFeed from './NewsFeed';
+import Dashboard from './Dashboard';
+import StockScreener from './StockScreener';
 
-// API-nycklar (ersätt med dina egna)
-const ALPHA_VANTAGE_API_KEY = 'YOUR_ALPHA_VANTAGE_KEY';
-const NEWS_API_KEY = 'YOUR_NEWSAPI_KEY';
+// Läser API-nycklar från .env-filen
+const ALPHA_VANTAGE_API_KEY = import.meta.env.VITE_ALPHA_VANTAGE_API_KEY || 'YOUR_ALPHA_VANTAGE_KEY';
+const NEWS_API_KEY = import.meta.env.VITE_NEWS_API_KEY || 'YOUR_NEWSAPI_KEY';
+
+// LOG: Skriv ut värdena direkt efter inläsning
+console.log('[StockApp] Alpha Vantage Key loaded:', ALPHA_VANTAGE_API_KEY);
+console.log('[StockApp] NewsAPI Key loaded:', NEWS_API_KEY);
 
 const StockApp = () => {
   // Initial lista med aktier
@@ -52,7 +59,8 @@ const StockApp = () => {
     return saved ? JSON.parse(saved) : [];
   });
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
-  const [activeTab, setActiveTab] = useState('chart'); // 'chart' eller 'news'
+  const [activeDetailTab, setActiveDetailTab] = useState('chart');
+  const [activeMainView, setActiveMainView] = useState('dashboard');
 
   // Laddnings- och felstate
   const [isLoadingListQuotes, setIsLoadingListQuotes] = useState(false);
@@ -97,8 +105,13 @@ const StockApp = () => {
     };
 
     const fetchInitialQuotes = async () => {
+      // LOG: Skriv ut värdet av apiKeyAV precis innan kontrollen
+      console.log('[StockApp useEffect] Checking apiKeyAV before fetch:', apiKeyAV);
+      
       if (!apiKeyAV || apiKeyAV === 'YOUR_ALPHA_VANTAGE_KEY') {
-        setErrorState(prev => ({ ...prev, list: "Alpha Vantage API-nyckel saknas." }));
+        // LOG: Om vi hamnar här betyder det att nyckeln fortfarande ses som ogiltig
+        console.error('[StockApp useEffect] API Key check failed! apiKeyAV:', apiKeyAV);
+        setErrorState(prev => ({ ...prev, list: "Alpha Vantage API-nyckel saknas eller är ogiltig." })); // Tydligare felmeddelande
         return;
       }
 
@@ -150,16 +163,16 @@ const StockApp = () => {
         const history = await fetchDailyHistory(selectedStockTicker, apiKeyAV);
         setSelectedStockHistory(history || []);
 
-        // Företagsinformation (med fördröjning)
+        // Hämta utökad företagsinformation istället för bara overview
         await new Promise(r => setTimeout(r, rateLimitDelay));
-        const overview = await fetchCompanyOverview(selectedStockTicker, apiKeyAV);
-        setSelectedStockOverview(overview);
+        const extendedInfo = await fetchExtendedCompanyInfo(selectedStockTicker, apiKeyAV);
+        setSelectedStockOverview(extendedInfo);
         
         // Uppdatera marketCap i huvudlistan om vi fick en nyare
-        if (overview && overview.marketCap) {
+        if (extendedInfo && extendedInfo.marketCap) {
           setStockInfoList(prevList => prevList.map(stock => 
             stock.ticker === selectedStockTicker 
-            ? { ...stock, marketCap: overview.marketCap } 
+            ? { ...stock, marketCap: extendedInfo.marketCap } 
             : stock
           ));
         }
@@ -193,6 +206,14 @@ const StockApp = () => {
           console.error('Fel vid uppdatering:', error);
         }
       }, 60 * 1000); // En gång per minut
+    }
+
+    // Nollställ huvudvyn när en aktie väljs för att visa detaljer
+    if (selectedStockTicker) {
+        setActiveMainView('details');
+    } else if (activeMainView === 'details') {
+        // Återgå till dashboard om aktien avmarkeras
+        setActiveMainView('dashboard');
     }
 
     return () => clearInterval(quoteUpdateIntervalRef.current);
@@ -273,10 +294,26 @@ const StockApp = () => {
 
   return (
     <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-dark-900">
-      {/* Vänster kolumn - Aktielista */}
+      {/* Vänster kolumn - Lista & Navigation */} 
       <div className="w-full lg:w-1/3 xl:w-1/4 border-r border-gray-700 flex flex-col bg-gray-900">
-        {/* Sök & filter */}
+        {/* Navigation & Sök/Filter */} 
         <div className="p-4 border-b border-gray-700 space-y-3">
+          {/* Vy-växlare */} 
+          <div className="flex space-x-2 mb-3">
+            <button
+              onClick={() => setActiveMainView('dashboard')}
+              className={`btn ${activeMainView === 'dashboard' ? 'btn-primary' : 'btn-secondary'} flex-1 flex items-center justify-center text-xs py-1 px-2`}
+            >
+              <Home size={14} className="mr-1" /> Översikt
+            </button>
+            <button
+              onClick={() => setActiveMainView('screener')}
+              className={`btn ${activeMainView === 'screener' ? 'btn-primary' : 'btn-secondary'} flex-1 flex items-center justify-center text-xs py-1 px-2`}
+            >
+              <SlidersHorizontal size={14} className="mr-1" /> Screener
+            </button>
+          </div>
+          
           {/* API nyckel varning */}
           {(!apiKeyAV || apiKeyAV === 'YOUR_ALPHA_VANTAGE_KEY') && (
             <div className="badge badge-error p-2 mb-2 flex items-center">
@@ -289,19 +326,18 @@ const StockApp = () => {
             </div>
           )}
           
-          {/* Sökfält */}
+          {/* Sökfält & Favoritfilter (visas bara om inte screener är aktiv?) Kanske alltid? */}
+          {/* Vi behåller dem synliga tills vidare */}
           <div className="relative">
             <input 
               type="text" 
-              placeholder="Sök aktie..."
-              className="form-input pl-8"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Sök aktie..." 
+              className="form-input pl-8" 
+              value={searchQuery} 
+              onChange={(e) => setSearchQuery(e.target.value)} 
             />
             <Search size={16} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500" />
           </div>
-          
-          {/* Filter */}
           <div className="flex justify-between items-center text-xs">
             <button 
               onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
@@ -318,7 +354,7 @@ const StockApp = () => {
           {errorState.list && <p className="text-xs text-red-400 mt-1">{errorState.list}</p>}
         </div>
 
-        {/* Aktielista */}
+        {/* Aktielista (visas alltid under nav/filter) */} 
         <div className="flex-grow overflow-y-auto">
           <table className="w-full text-sm table-fixed">
             <thead className="sticky top-0 bg-gray-800 z-10 shadow-sm">
@@ -403,16 +439,16 @@ const StockApp = () => {
           </table>
         </div>
         
-        {/* Footer */}
+        {/* Footer */} 
         <div className="p-2 text-xs text-gray-500 border-t border-gray-700 text-center flex items-center justify-center bg-gray-800">
           <Clock size={12} className="mr-1"/> Data från Alpha Vantage & NewsAPI (kan vara fördröjd)
         </div>
       </div>
 
-      {/* Höger kolumn - Detaljer */}
+      {/* Höger kolumn - Detaljer / Dashboard / Screener */} 
       <div className="w-full lg:w-2/3 xl:w-3/4 flex flex-col bg-gray-800/30">
-        {selectedStockTicker ? (
-          <>
+        {selectedStockTicker ? ( // Visa ALLTID detaljer om en aktie är vald
+          <> 
             {/* Aktie-header */}
             <div className="p-4 border-b border-gray-700 bg-gray-800 relative">
               {isLoadingDetails && (
@@ -490,34 +526,34 @@ const StockApp = () => {
               )}
             </div>
 
-            {/* Flikar */}
+            {/* Flikar (byter nu activeDetailTab) */} 
             <div className="flex border-b border-gray-700 bg-gray-800/80 text-sm">
               <button 
-                className={`px-5 py-3 flex items-center transition-colors duration-150 ${
-                  activeTab === 'chart' 
+                className={`px-5 py-3 flex items-center transition-colors duration-150 ${ 
+                  activeDetailTab === 'chart' 
                     ? 'border-b-2 border-primary text-white font-medium' 
                     : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
                 }`}
-                onClick={() => setActiveTab('chart')}
+                onClick={() => setActiveDetailTab('chart')}
               >
                 <BarChart2 size={16} className="mr-2"/> Graf & Info
               </button>
               <button 
-                className={`px-5 py-3 flex items-center transition-colors duration-150 ${
-                  activeTab === 'news' 
+                className={`px-5 py-3 flex items-center transition-colors duration-150 ${ 
+                  activeDetailTab === 'news' 
                     ? 'border-b-2 border-primary text-white font-medium' 
                     : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
                 }`}
-                onClick={() => setActiveTab('news')}
+                onClick={() => setActiveDetailTab('news')}
               >
                 <Newspaper size={16} className="mr-2"/> Nyheter
               </button>
             </div>
 
-            {/* Innehåll */}
+            {/* Innehåll (styrs av activeDetailTab) */} 
             <div className="flex-grow p-4 overflow-y-auto space-y-6 bg-gray-900/20">
-              {activeTab === 'chart' ? (
-                <>
+              {activeDetailTab === 'chart' ? (
+                <> 
                   {/* Graf */}
                   <div className="card">
                     <StockChart 
@@ -552,15 +588,24 @@ const StockApp = () => {
               )}
             </div>
           </>
-        ) : (
-          <div className="flex-grow flex flex-col items-center justify-center text-gray-500 p-8">
-            <BarChart2 size={64} className="mb-4 text-gray-400" />
-            <h3 className="text-xl font-medium mb-2">Välj en aktie från listan</h3>
-            <p className="text-gray-400 text-center max-w-md">
-              Välj en aktie från listan till vänster för att se detaljerad information, grafer och nyheter.
-            </p>
+        ) : activeMainView === 'dashboard' ? ( // Om ingen aktie vald OCH dashboard är aktiv
+          <div className="flex-grow p-6 overflow-y-auto">
+            <Dashboard 
+              apiKey={apiKeyAV} 
+              stockList={stockInfoList} 
+            />
           </div>
-        )}
+        ) : activeMainView === 'screener' ? ( // Om ingen aktie vald OCH screener är aktiv
+           <StockScreener 
+             allStocks={stockInfoList} // Skicka med hela listan för filtrering
+            // TODO: Behöver vi skicka med quotes också för att filtrera på P/E etc?
+           />
+        ) : (
+            // Fallback om ingen vy matchar (bör inte hända)
+            <div className="flex-grow p-6 flex items-center justify-center text-gray-500">
+                Välj en aktie från listan eller en vy ovan.
+            </div>
+        )} 
       </div>
     </div>
   );

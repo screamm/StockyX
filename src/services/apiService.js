@@ -231,6 +231,233 @@ export const fetchNews = async (query, apiKey) => {
   }
 };
 
+// NYA FUNKTIONER
+
+// Hämta marknadsindex (t.ex. S&P 500, OMXS30)
+export const fetchMarketIndex = async (symbol, apiKey) => {
+  const cacheKey = `index_${symbol}`;
+  const CACHE_DURATION = 15 * 60 * 1000; // 15 minuter
+  
+  if (isCacheValid(cacheKey, CACHE_DURATION)) {
+    console.log("Använder cachad indexdata för:", symbol);
+    return apiCache[cacheKey].data;
+  }
+  
+  if (!apiKey || apiKey === 'YOUR_ALPHA_VANTAGE_KEY') {
+    console.warn("Alpha Vantage API-nyckel saknas");
+    return null;
+  }
+  
+  console.log("Hämtar indexdata för:", symbol);
+  try {
+    const response = await axios.get(AV_BASE_URL, {
+      params: {
+        function: 'GLOBAL_QUOTE',
+        symbol: symbol,
+        apikey: apiKey
+      }
+    });
+    
+    const quoteData = response.data['Global Quote'];
+    if (quoteData && Object.keys(quoteData).length > 0) {
+      const formattedData = {
+        symbol: symbol,
+        price: parseFloat(quoteData['05. price']),
+        change: parseFloat(quoteData['09. change']),
+        changePercent: parseFloat(quoteData['10. change percent'].replace('%', '')),
+        lastTradingDay: quoteData['07. latest trading day'],
+      };
+      
+      apiCache[cacheKey] = { 
+        data: formattedData, 
+        timestamp: Date.now() 
+      };
+      
+      return formattedData;
+    } else {
+      console.warn(`Ingen indexdata hittades för ${symbol}`, response.data);
+      return null;
+    }
+  } catch (error) {
+    console.error(`Fel vid hämtning av indexdata för ${symbol}:`, error);
+    return null;
+  }
+};
+
+// Hämta valutakurser (t.ex. USD/SEK)
+export const fetchCurrencyRate = async (fromCurrency, toCurrency, apiKey) => {
+  const cacheKey = `currency_${fromCurrency}_${toCurrency}`;
+  const CACHE_DURATION = 60 * 60 * 1000; // 1 timme
+  
+  if (isCacheValid(cacheKey, CACHE_DURATION)) {
+    console.log(`Använder cachad valutakurs för: ${fromCurrency}/${toCurrency}`);
+    return apiCache[cacheKey].data;
+  }
+  
+  if (!apiKey || apiKey === 'YOUR_ALPHA_VANTAGE_KEY') {
+    console.warn("Alpha Vantage API-nyckel saknas");
+    return null;
+  }
+  
+  console.log(`Hämtar valutakurs för: ${fromCurrency}/${toCurrency}`);
+  try {
+    const response = await axios.get(AV_BASE_URL, {
+      params: {
+        function: 'CURRENCY_EXCHANGE_RATE',
+        from_currency: fromCurrency,
+        to_currency: toCurrency,
+        apikey: apiKey
+      }
+    });
+    
+    const exchangeData = response.data['Realtime Currency Exchange Rate'];
+    if (exchangeData) {
+      const formattedData = {
+        fromCurrency: fromCurrency,
+        toCurrency: toCurrency,
+        rate: parseFloat(exchangeData['5. Exchange Rate']),
+        lastUpdated: exchangeData['6. Last Refreshed'],
+        timeZone: exchangeData['7. Time Zone'],
+      };
+      
+      apiCache[cacheKey] = { 
+        data: formattedData, 
+        timestamp: Date.now() 
+      };
+      
+      return formattedData;
+    } else {
+      console.warn(`Ingen valutakursdata hittades för ${fromCurrency}/${toCurrency}`, response.data);
+      return null;
+    }
+  } catch (error) {
+    console.error(`Fel vid hämtning av valutakurs för ${fromCurrency}/${toCurrency}:`, error);
+    return null;
+  }
+};
+
+// Hämta dagens vinnare/förlorare (simulerad då Alpha Vantage inte har en specifik endpoint för detta)
+export const fetchTopMovers = async (stockList, apiKey, limit = 5) => {
+  const cacheKey = 'top_movers';
+  const CACHE_DURATION = 30 * 60 * 1000; // 30 minuter
+  
+  if (isCacheValid(cacheKey, CACHE_DURATION)) {
+    console.log("Använder cachade topp-kurser");
+    return apiCache[cacheKey].data;
+  }
+  
+  if (!apiKey || apiKey === 'YOUR_ALPHA_VANTAGE_KEY' || !stockList || stockList.length === 0) {
+    console.warn("API-nyckel eller aktielista saknas");
+    return { gainers: [], losers: [] };
+  }
+  
+  console.log("Hämtar dagens vinnare och förlorare");
+  try {
+    // Hämta quotes för alla aktier i listan
+    const quotes = [];
+    
+    // Vi begränsar antalet anrop för att inte överbelasta API:et
+    const maxStocks = Math.min(stockList.length, 20);
+    
+    for (let i = 0; i < maxStocks; i++) {
+      const quote = await fetchStockQuote(stockList[i].ticker, apiKey);
+      if (quote) {
+        quotes.push({
+          ...quote,
+          ticker: stockList[i].ticker,
+          name: stockList[i].name
+        });
+      }
+      
+      // Fördröj för att inte nå Alpha Vantage API-gränser
+      if (i < maxStocks - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+    }
+    
+    // Sortera efter procent förändring
+    quotes.sort((a, b) => b.changePercent - a.changePercent);
+    
+    const result = {
+      gainers: quotes.filter(q => q.changePercent > 0).slice(0, limit),
+      losers: quotes.filter(q => q.changePercent < 0).sort((a, b) => a.changePercent - b.changePercent).slice(0, limit)
+    };
+    
+    apiCache[cacheKey] = { 
+      data: result, 
+      timestamp: Date.now() 
+    };
+    
+    return result;
+  } catch (error) {
+    console.error('Fel vid hämtning av topp-kurser:', error);
+    return { gainers: [], losers: [] };
+  }
+};
+
+// Utökad företagsinformation
+export const fetchExtendedCompanyInfo = async (ticker, apiKey) => {
+  // Först hämta grundläggande företagsöversikt
+  const overview = await fetchCompanyOverview(ticker, apiKey);
+  if (!overview) return null;
+  
+  // Simulerar ytterligare företagsdata (dessa API-endpoints finns inte i Alpha Vantage)
+  // I en riktig app skulle detta hämtas från ytterligare API-anrop
+  const cacheKey = `extended_info_${ticker}`;
+  const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 timmar
+  
+  if (isCacheValid(cacheKey, CACHE_DURATION)) {
+    console.log("Använder cachad utökad företagsinfo för:", ticker);
+    return { ...overview, ...apiCache[cacheKey].data };
+  }
+  
+  // Simulera ytterligare data
+  const extendedInfo = {
+    // Simulera insiderhandel
+    insiderTransactions: [
+      { 
+        date: '2023-05-15', 
+        name: 'Anna Andersson',
+        position: 'CEO',
+        type: 'Köp',
+        shares: 1000,
+        price: 150.50,
+        value: 150500
+      },
+      { 
+        date: '2023-04-22', 
+        name: 'Erik Eriksson',
+        position: 'CFO',
+        type: 'Sälj',
+        shares: 500,
+        price: 155.20,
+        value: 77600
+      }
+    ],
+    
+    // Simulera större ägare
+    majorShareholders: [
+      { name: 'Institutional Investor AB', shares: 1500000, percent: 15.2 },
+      { name: 'Global Asset Management', shares: 1200000, percent: 12.1 },
+      { name: 'Pension Fund Three', shares: 850000, percent: 8.6 }
+    ],
+    
+    // Simulera utdelningshistorik
+    dividendHistory: [
+      { year: '2023', amount: 5.50, yield: 3.2, exDate: '2023-04-15', paymentDate: '2023-05-01' },
+      { year: '2022', amount: 5.00, yield: 3.0, exDate: '2022-04-16', paymentDate: '2022-05-02' },
+      { year: '2021', amount: 4.50, yield: 2.8, exDate: '2021-04-15', paymentDate: '2021-05-03' }
+    ]
+  };
+  
+  apiCache[cacheKey] = { 
+    data: extendedInfo, 
+    timestamp: Date.now() 
+  };
+  
+  return { ...overview, ...extendedInfo };
+};
+
 // Hjälpfunktioner för formatering
 export const formatNumber = (num, decimals = 2) => {
   if (num === null || num === undefined || isNaN(num)) return '-';

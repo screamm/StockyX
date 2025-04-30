@@ -131,6 +131,100 @@ const StockInfo = ({ ticker, overviewData, quoteData, isLoading, error }) => {
           </div>
         </div>
       )}
+
+      {/* Insiderhandel */}
+      {overviewData.insiderTransactions && overviewData.insiderTransactions.length > 0 && (
+        <div className="mt-6">
+          <h4 className="text-md font-semibold mb-3">Insiderhandel</h4>
+          <div className="bg-gray-800/50 rounded-md shadow-sm border border-gray-700/50 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-gray-400 text-xs">
+                <tr className="border-b border-gray-700">
+                  <th className="text-left p-3">Datum</th>
+                  <th className="text-left p-3">Namn</th>
+                  <th className="text-left p-3">Position</th>
+                  <th className="text-left p-3">Typ</th>
+                  <th className="text-right p-3">Antal</th>
+                  <th className="text-right p-3">Pris</th>
+                  <th className="text-right p-3 hidden md:table-cell">Värde</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overviewData.insiderTransactions.map((tx, index) => (
+                  <tr key={index} className="border-b border-gray-700/50 last:border-b-0 hover:bg-gray-700/30 transition-colors duration-150">
+                    <td className="p-3">{new Date(tx.date).toLocaleDateString('sv-SE')}</td>
+                    <td className="p-3">{tx.name}</td>
+                    <td className="p-3">{tx.position}</td>
+                    <td className={`p-3 ${tx.type === 'Köp' ? 'text-green-400' : 'text-red-400'}`}>{tx.type}</td>
+                    <td className="text-right p-3">{formatNumber(tx.shares, 0)}</td>
+                    <td className="text-right p-3">{formatNumber(tx.price)}</td>
+                    <td className="text-right p-3 hidden md:table-cell">{formatLargeNumber(tx.value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Större ägare */}
+      {overviewData.majorShareholders && overviewData.majorShareholders.length > 0 && (
+        <div className="mt-6">
+          <h4 className="text-md font-semibold mb-3">Största ägare</h4>
+          <div className="bg-gray-800/50 rounded-md shadow-sm border border-gray-700/50 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-gray-400 text-xs">
+                <tr className="border-b border-gray-700">
+                  <th className="text-left p-3">Namn</th>
+                  <th className="text-right p-3">Antal aktier</th>
+                  <th className="text-right p-3">Andel (%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overviewData.majorShareholders.map((owner, index) => (
+                  <tr key={index} className="border-b border-gray-700/50 last:border-b-0 hover:bg-gray-700/30 transition-colors duration-150">
+                    <td className="p-3">{owner.name}</td>
+                    <td className="text-right p-3">{formatLargeNumber(owner.shares)}</td>
+                    <td className="text-right p-3">{formatNumber(owner.percent, 1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      
+      {/* Utdelningshistorik */}
+      {overviewData.dividendHistory && overviewData.dividendHistory.length > 0 && (
+        <div className="mt-6">
+          <h4 className="text-md font-semibold mb-3">Utdelningshistorik</h4>
+          <div className="bg-gray-800/50 rounded-md shadow-sm border border-gray-700/50 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-gray-400 text-xs">
+                <tr className="border-b border-gray-700">
+                  <th className="text-left p-3">År</th>
+                  <th className="text-right p-3">Utdelning</th>
+                  <th className="text-right p-3 hidden sm:table-cell">Direktav.</th>
+                  <th className="text-right p-3 hidden md:table-cell">X-dag</th>
+                  <th className="text-right p-3 hidden md:table-cell">Utbet.dag</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overviewData.dividendHistory.map((div, index) => (
+                  <tr key={index} className="border-b border-gray-700/50 last:border-b-0 hover:bg-gray-700/30 transition-colors duration-150">
+                    <td className="p-3">{div.year}</td>
+                    <td className="text-right p-3">{formatNumber(div.amount)} SEK</td>
+                    <td className="text-right p-3 hidden sm:table-cell">{formatNumber(div.yield, 1)}%</td>
+                    <td className="text-right p-3 hidden md:table-cell">{new Date(div.exDate).toLocaleDateString('sv-SE')}</td>
+                    <td className="text-right p-3 hidden md:table-cell">{new Date(div.paymentDate).toLocaleDateString('sv-SE')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      
     </div>
   );
 };
