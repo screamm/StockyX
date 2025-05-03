@@ -1,0 +1,8 @@
+# Ignorera node_modules
+node_modules
+
+# Ignorera .env-filen med känslig data
+.env
+
+# Ignorera loggfiler
+*.log 

@@ -1,10 +1,9 @@
 import axios from 'axios';
 
-// Basadresser för API:er
-const AV_BASE_URL = 'https://www.alphavantage.co/query';
-const NEWS_API_BASE_URL = 'https://newsapi.org/v2/everything';
+// Basadress till din nya backend-proxy
+const PROXY_BASE_URL = 'http://localhost:3001/api'; // Standardport 3001 för servern
 
-// Cache för att minimera API-anrop
+// Cache för att minimera API-anrop (kan fortfarande vara användbart på klienten)
 let apiCache = {};
 
 // Hjälpfunktion för att kontrollera cachens giltighet
@@ -15,450 +14,256 @@ const isCacheValid = (cacheKey, duration) => {
   return (now - apiCache[cacheKey].timestamp < duration);
 };
 
-// Hämta aktiekurs (GLOBAL_QUOTE)
-export const fetchStockQuote = async (ticker, apiKey) => {
+// Hämta aktiekurs - Anropar nu backend-proxyn
+export const fetchStockQuote = async (ticker) => { // apiKey behövs inte längre här
   const cacheKey = `quote_${ticker}`;
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minuter
   
   if (isCacheValid(cacheKey, CACHE_DURATION)) {
-    console.log("Använder cachad kursdata för:", ticker);
+    console.log(`[Frontend] Använder cachad kursdata för: ${ticker}`);
     return apiCache[cacheKey].data;
   }
   
-  if (!apiKey || apiKey === 'YOUR_ALPHA_VANTAGE_KEY') {
-    console.warn("Alpha Vantage API-nyckel saknas");
-    return null;
-  }
-  
-  console.log("Hämtar kursdata för:", ticker);
+  console.log(`[Frontend] Hämtar kursdata för ${ticker} från proxy`);
   try {
-    const response = await axios.get(AV_BASE_URL, {
-      params: {
-        function: 'GLOBAL_QUOTE',
-        symbol: ticker,
-        apikey: apiKey
-      }
-    });
+    // Anropa din backend-proxy
+    const response = await axios.get(`${PROXY_BASE_URL}/quote/${ticker}`);
     
-    const quoteData = response.data['Global Quote'];
-    if (quoteData && Object.keys(quoteData).length > 0) {
-      const formattedData = {
-        price: parseFloat(quoteData['05. price']),
-        change: parseFloat(quoteData['09. change']),
-        changePercent: parseFloat(quoteData['10. change percent'].replace('%', '')),
-        volume: parseInt(quoteData['06. volume']),
-        prevClose: parseFloat(quoteData['08. previous close']),
-        lastTradingDay: quoteData['07. latest trading day'],
-        open: parseFloat(quoteData['02. open']),
-        dayHigh: parseFloat(quoteData['03. high']),
-        dayLow: parseFloat(quoteData['04. low']),
-      };
-      
+    if (response.data) {
       apiCache[cacheKey] = { 
-        data: formattedData, 
+        data: response.data, 
         timestamp: Date.now() 
       };
-      
-      return formattedData;
+      return response.data;
     } else {
-      console.warn(`Ingen kursdata hittades för ${ticker}`, response.data);
+      console.warn(`[Frontend] Ingen kursdata returnerades från proxy för ${ticker}`);
       return null;
     }
   } catch (error) {
-    console.error(`Fel vid hämtning av kursdata för ${ticker}:`, error);
-    return null;
+    console.error(`[Frontend] Fel vid hämtning av kursdata från proxy för ${ticker}:`, 
+                  error.response ? error.response.data : error.message);
+    return null; // Returnera null vid fel
   }
 };
 
-// Hämta historisk data (TIME_SERIES_DAILY_ADJUSTED)
-export const fetchDailyHistory = async (ticker, apiKey) => {
+// Hämta historisk data - Anropar nu backend-proxyn
+export const fetchDailyHistory = async (ticker) => { // apiKey behövs inte längre här
   const cacheKey = `history_${ticker}`;
   const CACHE_DURATION = 60 * 60 * 1000; // 1 timme
   
   if (isCacheValid(cacheKey, CACHE_DURATION)) {
-    console.log("Använder cachad historik för:", ticker);
+    console.log(`[Frontend] Använder cachad historik för: ${ticker}`);
     return apiCache[cacheKey].data;
   }
   
-  if (!apiKey || apiKey === 'YOUR_ALPHA_VANTAGE_KEY') {
-    console.warn("Alpha Vantage API-nyckel saknas");
-    return [];
-  }
-  
-  console.log("Hämtar historik för:", ticker);
+   console.log(`[Frontend] Hämtar historik för ${ticker} från proxy`);
   try {
-    const response = await axios.get(AV_BASE_URL, {
-      params: {
-        function: 'TIME_SERIES_DAILY_ADJUSTED',
-        symbol: ticker,
-        outputsize: 'compact', // 100 dagar
-        apikey: apiKey
-      }
-    });
+    // Anropa din backend-proxy
+    const response = await axios.get(`${PROXY_BASE_URL}/history/${ticker}`);
     
-    const timeSeries = response.data['Time Series (Daily)'];
-    if (timeSeries) {
-      const formattedData = Object.entries(timeSeries)
-        .map(([date, values]) => ({
-          date: date,
-          price: parseFloat(values['5. adjusted close']),
-          volume: parseInt(values['6. volume'])
-        }))
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
-      
-      apiCache[cacheKey] = { 
-        data: formattedData, 
-        timestamp: Date.now() 
-      };
-      
-      return formattedData;
+    if (response.data && Array.isArray(response.data)) {
+        apiCache[cacheKey] = { 
+          data: response.data, 
+          timestamp: Date.now() 
+        };
+       return response.data;
     } else {
-      console.warn(`Ingen historisk data hittades för ${ticker}`, response.data);
-      return [];
+       console.warn(`[Frontend] Ingen historik returnerades från proxy för ${ticker}`);
+       return [];
     }
   } catch (error) {
-    console.error(`Fel vid hämtning av historik för ${ticker}:`, error);
-    return [];
+     console.error(`[Frontend] Fel vid hämtning av historik från proxy för ${ticker}:`, 
+                  error.response ? error.response.data : error.message);
+    return []; // Returnera tom array vid fel
   }
 };
 
-// Hämta företagsinformation (OVERVIEW)
-export const fetchCompanyOverview = async (ticker, apiKey) => {
+// Hämta företagsinformation - Anropar nu backend-proxyn
+export const fetchCompanyOverview = async (ticker) => { // apiKey behövs inte längre här
   const cacheKey = `overview_${ticker}`;
-  const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 timmar
+  // Använder samma cache som extendedInfo eftersom servern nu returnerar allt
+  const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 timmar 
   
   if (isCacheValid(cacheKey, CACHE_DURATION)) {
-    console.log("Använder cachad företagsinfo för:", ticker);
+    console.log(`[Frontend] Använder cachad företagsinfo för: ${ticker}`);
     return apiCache[cacheKey].data;
   }
   
-  if (!apiKey || apiKey === 'YOUR_ALPHA_VANTAGE_KEY') {
-    console.warn("Alpha Vantage API-nyckel saknas");
-    return null;
-  }
-  
-  console.log("Hämtar företagsinfo för:", ticker);
-  try {
-    const response = await axios.get(AV_BASE_URL, {
-      params: {
-        function: 'OVERVIEW',
-        symbol: ticker,
-        apikey: apiKey
+   console.log(`[Frontend] Hämtar företagsinfo för ${ticker} från proxy`);
+   try {
+      // Anropa din backend-proxy
+      const response = await axios.get(`${PROXY_BASE_URL}/overview/${ticker}`);
+      
+      if (response.data) {
+        apiCache[cacheKey] = { 
+          data: response.data, 
+          timestamp: Date.now() 
+        };
+        return response.data;
+      } else {
+         console.warn(`[Frontend] Ingen företagsinfo returnerades från proxy för ${ticker}`);
+         return null;
       }
-    });
-    
-    const overviewData = response.data;
-    if (overviewData && overviewData.Symbol) {
-      const formattedData = {
-        name: overviewData.Name,
-        description: overviewData.Description,
-        sector: overviewData.Sector,
-        industry: overviewData.Industry,
-        marketCap: parseInt(overviewData.MarketCapitalization),
-        peRatio: parseFloat(overviewData.PERatio),
-        dividendYield: parseFloat(overviewData.DividendYield) * 100,
-        fiftyTwoWeekHigh: parseFloat(overviewData['52WeekHigh']),
-        fiftyTwoWeekLow: parseFloat(overviewData['52WeekLow']),
-      };
-      
-      apiCache[cacheKey] = { 
-        data: formattedData, 
-        timestamp: Date.now() 
-      };
-      
-      return formattedData;
-    } else {
-      console.warn(`Ingen företagsinfo hittades för ${ticker}`, response.data);
-      return null;
-    }
-  } catch (error) {
-    console.error(`Fel vid hämtning av företagsinfo för ${ticker}:`, error);
-    return null;
-  }
+   } catch (error) {
+       console.error(`[Frontend] Fel vid hämtning av företagsinfo från proxy för ${ticker}:`, 
+                    error.response ? error.response.data : error.message);
+       return null;
+   }
 };
 
-// Hämta nyheter (NewsAPI)
-export const fetchNews = async (query, apiKey) => {
+// Hämta nyheter - Anropar nu backend-proxyn
+export const fetchNews = async (query) => { // apiKey behövs inte längre här
   const cacheKey = `news_${query}`;
   const CACHE_DURATION = 30 * 60 * 1000; // 30 minuter
   
   if (isCacheValid(cacheKey, CACHE_DURATION)) {
-    console.log("Använder cachade nyheter för:", query);
+    console.log(`[Frontend] Använder cachade nyheter för: ${query}`);
     return apiCache[cacheKey].data;
   }
   
-  if (!apiKey || apiKey === 'YOUR_NEWSAPI_KEY') {
-    console.warn("NewsAPI-nyckel saknas");
-    return [];
-  }
-  
-  console.log("Hämtar nyheter för:", query);
+  console.log(`[Frontend] Hämtar nyheter för ${query} från proxy`);
   try {
-    const response = await axios.get(NEWS_API_BASE_URL, {
-      params: {
-        q: query,
-        language: 'sv',
-        sortBy: 'publishedAt',
-        pageSize: 20,
-        apiKey: apiKey
+      // Anropa din backend-proxy
+      const response = await axios.get(`${PROXY_BASE_URL}/news`, { params: { q: query } });
+      
+      if (response.data && Array.isArray(response.data)) {
+           apiCache[cacheKey] = { 
+              data: response.data, 
+              timestamp: Date.now() 
+            };
+          return response.data;
+      } else {
+          console.warn(`[Frontend] Inga nyheter returnerades från proxy för ${query}`);
+          return [];
       }
-    });
-    
-    if (response.data && response.data.articles) {
-      const articles = response.data.articles.map(article => ({
-        id: article.url + article.publishedAt,
-        title: article.title,
-        summary: article.description,
-        url: article.url,
-        source: article.source.name,
-        date: article.publishedAt,
-        sentiment: 'neutral'
-      }));
-      
-      apiCache[cacheKey] = { 
-        data: articles, 
-        timestamp: Date.now() 
-      };
-      
-      return articles;
-    } else {
-      console.warn(`Inga nyheter hittades för ${query}`, response.data);
-      return [];
-    }
   } catch (error) {
-    console.error(`Fel vid hämtning av nyheter för ${query}:`, error);
+     console.error(`[Frontend] Fel vid hämtning av nyheter från proxy för ${query}:`, 
+                  error.response ? error.response.data : error.message);
     return [];
   }
 };
 
-// NYA FUNKTIONER
+// NYA FUNKTIONER (Dessa behöver också uppdateras eller tas bort om de inte används)
 
-// Hämta marknadsindex (t.ex. S&P 500, OMXS30)
-export const fetchMarketIndex = async (symbol, apiKey) => {
-  const cacheKey = `index_${symbol}`;
-  const CACHE_DURATION = 15 * 60 * 1000; // 15 minuter
-  
-  if (isCacheValid(cacheKey, CACHE_DURATION)) {
-    console.log("Använder cachad indexdata för:", symbol);
-    return apiCache[cacheKey].data;
+// Hämta marknadsindex - Behöver uppdateras för att använda proxy
+export const fetchMarketIndex = async (symbol) => {
+   const cacheKey = `index_${symbol}`;
+   const CACHE_DURATION = 15 * 60 * 1000; // 15 minuter
+
+   if (isCacheValid(cacheKey, CACHE_DURATION)) {
+     console.log(`[Frontend] Använder cachad indexdata för: ${symbol}`);
+     return apiCache[cacheKey].data;
+   }
+
+   console.log(`[Frontend] Hämtar indexdata för ${symbol} från proxy`);
+   try {
+     // Anropa proxyns quote-endpoint (eftersom servern hanterar både aktier och index där)
+     const response = await axios.get(`${PROXY_BASE_URL}/quote/${symbol}`);
+     if (response.data) {
+       // Servern returnerar redan det format vi behöver för quote,
+       // men vi kanske vill lägga till symbol här om det behövs
+       const indexData = { ...response.data, symbol: symbol }; 
+       apiCache[cacheKey] = { 
+         data: indexData, 
+         timestamp: Date.now() 
+       };
+       return indexData;
+     } else {
+       console.warn(`[Frontend] Ingen indexdata returnerades från proxy för ${symbol}`);
+       return null;
+     }
+   } catch (error) {
+     console.error(`[Frontend] Fel vid hämtning av indexdata från proxy för ${symbol}:`, 
+                   error.response ? error.response.data : error.message);
+     return null;
+   }
+};
+
+// Hämta valutakurser - Behöver uppdateras för att använda proxy
+// TODO: Skapa en /api/currency endpoint på servern om denna funktion behövs.
+export const fetchCurrencyRate = async (fromCurrency, toCurrency) => {
+   console.warn("[Frontend] fetchCurrencyRate anropar inte proxy än. Behöver implementeras.");
+   // Temporärt returnera null
+   return null; 
+   /*
+   const cacheKey = `currency_${fromCurrency}_${toCurrency}`;
+   // ... (resten av cache-logiken) ...
+   
+   try {
+     const response = await axios.get(`${PROXY_BASE_URL}/currency/${fromCurrency}/${toCurrency}`); // Exempel-URL
+     // ... (hantera response) ...
+   } catch (error) {
+      // ... (felhantering) ...
+   }
+   */
+};
+
+// Hämta dagens vinnare/förlorare - Behöver uppdateras för att använda proxy
+// TODO: Skapa en /api/topmovers endpoint på servern om denna funktion behövs.
+export const fetchTopMovers = async (stockList) => {
+   console.warn("[Frontend] fetchTopMovers anropar inte proxy än. Behöver implementeras.");
+   // Temporärt returnera tomma listor
+   return { gainers: [], losers: [] };
+   /*
+   const cacheKey = 'top_movers';
+   // ... (resten av cache-logiken) ...
+
+   try {
+       const response = await axios.post(`${PROXY_BASE_URL}/topmovers`, { stocks: stockList.map(s => s.ticker) }); // Skicka tickers till servern
+       // ... (hantera response) ...
+   } catch (error) {
+       // ... (felhantering) ...
+   }
+   */
+};
+
+// Utökad företagsinformation - Anropas nu via fetchCompanyOverview
+export const fetchExtendedCompanyInfo = async (ticker) => {
+  // Denna funktion är nu samma som fetchCompanyOverview eftersom servern
+  // förväntas returnera all data (både grundläggande och "utökad") från /api/overview/:ticker
+  console.log(`[Frontend] fetchExtendedCompanyInfo anropar fetchCompanyOverview för ${ticker}`);
+  return await fetchCompanyOverview(ticker);
+};
+
+// Ny funktion för att hämta flera kurser samtidigt
+export const fetchMultipleStockQuotes = async (tickers) => {
+  if (!tickers || tickers.length === 0) {
+    return {};
   }
   
-  if (!apiKey || apiKey === 'YOUR_ALPHA_VANTAGE_KEY') {
-    console.warn("Alpha Vantage API-nyckel saknas");
-    return null;
-  }
-  
-  console.log("Hämtar indexdata för:", symbol);
+  console.log(`[Frontend] Hämtar ${tickers.length} kurser:`, tickers);
+
   try {
-    const response = await axios.get(AV_BASE_URL, {
-      params: {
-        function: 'GLOBAL_QUOTE',
-        symbol: symbol,
-        apikey: apiKey
+    // Skapa en array av promises för att hämta varje quote
+    const quotePromises = tickers.map(ticker => fetchStockQuote(ticker));
+
+    // Vänta på att alla promises ska slutföras (även om några misslyckas)
+    const results = await Promise.allSettled(quotePromises);
+
+    const quotes = {};
+    results.forEach((result, index) => {
+      const ticker = tickers[index];
+      if (result.status === 'fulfilled' && result.value) {
+        quotes[ticker] = result.value;
+      } else if (result.status === 'rejected') {
+        console.warn(`[Frontend] Kunde inte hämta kurs för ${ticker} i batch:`, result.reason);
+        // Eventuellt sätta null eller behålla gamla värdet om det fanns?
+        // För nu sätter vi inget för misslyckade anrop.
       }
     });
-    
-    const quoteData = response.data['Global Quote'];
-    if (quoteData && Object.keys(quoteData).length > 0) {
-      const formattedData = {
-        symbol: symbol,
-        price: parseFloat(quoteData['05. price']),
-        change: parseFloat(quoteData['09. change']),
-        changePercent: parseFloat(quoteData['10. change percent'].replace('%', '')),
-        lastTradingDay: quoteData['07. latest trading day'],
-      };
-      
-      apiCache[cacheKey] = { 
-        data: formattedData, 
-        timestamp: Date.now() 
-      };
-      
-      return formattedData;
-    } else {
-      console.warn(`Ingen indexdata hittades för ${symbol}`, response.data);
-      return null;
-    }
+
+    console.log(`[Frontend] Hämtade ${Object.keys(quotes).length} av ${tickers.length} kurser.`);
+    return quotes;
+
   } catch (error) {
-    console.error(`Fel vid hämtning av indexdata för ${symbol}:`, error);
-    return null;
+    // Detta block bör teoretiskt sett inte nås med allSettled, 
+    // men finns här som en säkerhetsåtgärd.
+    console.error('[Frontend] Oväntat fel vid hämtning av flera kurser:', error);
+    return {};
   }
 };
 
-// Hämta valutakurser (t.ex. USD/SEK)
-export const fetchCurrencyRate = async (fromCurrency, toCurrency, apiKey) => {
-  const cacheKey = `currency_${fromCurrency}_${toCurrency}`;
-  const CACHE_DURATION = 60 * 60 * 1000; // 1 timme
-  
-  if (isCacheValid(cacheKey, CACHE_DURATION)) {
-    console.log(`Använder cachad valutakurs för: ${fromCurrency}/${toCurrency}`);
-    return apiCache[cacheKey].data;
-  }
-  
-  if (!apiKey || apiKey === 'YOUR_ALPHA_VANTAGE_KEY') {
-    console.warn("Alpha Vantage API-nyckel saknas");
-    return null;
-  }
-  
-  console.log(`Hämtar valutakurs för: ${fromCurrency}/${toCurrency}`);
-  try {
-    const response = await axios.get(AV_BASE_URL, {
-      params: {
-        function: 'CURRENCY_EXCHANGE_RATE',
-        from_currency: fromCurrency,
-        to_currency: toCurrency,
-        apikey: apiKey
-      }
-    });
-    
-    const exchangeData = response.data['Realtime Currency Exchange Rate'];
-    if (exchangeData) {
-      const formattedData = {
-        fromCurrency: fromCurrency,
-        toCurrency: toCurrency,
-        rate: parseFloat(exchangeData['5. Exchange Rate']),
-        lastUpdated: exchangeData['6. Last Refreshed'],
-        timeZone: exchangeData['7. Time Zone'],
-      };
-      
-      apiCache[cacheKey] = { 
-        data: formattedData, 
-        timestamp: Date.now() 
-      };
-      
-      return formattedData;
-    } else {
-      console.warn(`Ingen valutakursdata hittades för ${fromCurrency}/${toCurrency}`, response.data);
-      return null;
-    }
-  } catch (error) {
-    console.error(`Fel vid hämtning av valutakurs för ${fromCurrency}/${toCurrency}:`, error);
-    return null;
-  }
-};
-
-// Hämta dagens vinnare/förlorare (simulerad då Alpha Vantage inte har en specifik endpoint för detta)
-export const fetchTopMovers = async (stockList, apiKey, limit = 5) => {
-  const cacheKey = 'top_movers';
-  const CACHE_DURATION = 30 * 60 * 1000; // 30 minuter
-  
-  if (isCacheValid(cacheKey, CACHE_DURATION)) {
-    console.log("Använder cachade topp-kurser");
-    return apiCache[cacheKey].data;
-  }
-  
-  if (!apiKey || apiKey === 'YOUR_ALPHA_VANTAGE_KEY' || !stockList || stockList.length === 0) {
-    console.warn("API-nyckel eller aktielista saknas");
-    return { gainers: [], losers: [] };
-  }
-  
-  console.log("Hämtar dagens vinnare och förlorare");
-  try {
-    // Hämta quotes för alla aktier i listan
-    const quotes = [];
-    
-    // Vi begränsar antalet anrop för att inte överbelasta API:et
-    const maxStocks = Math.min(stockList.length, 20);
-    
-    for (let i = 0; i < maxStocks; i++) {
-      const quote = await fetchStockQuote(stockList[i].ticker, apiKey);
-      if (quote) {
-        quotes.push({
-          ...quote,
-          ticker: stockList[i].ticker,
-          name: stockList[i].name
-        });
-      }
-      
-      // Fördröj för att inte nå Alpha Vantage API-gränser
-      if (i < maxStocks - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-    }
-    
-    // Sortera efter procent förändring
-    quotes.sort((a, b) => b.changePercent - a.changePercent);
-    
-    const result = {
-      gainers: quotes.filter(q => q.changePercent > 0).slice(0, limit),
-      losers: quotes.filter(q => q.changePercent < 0).sort((a, b) => a.changePercent - b.changePercent).slice(0, limit)
-    };
-    
-    apiCache[cacheKey] = { 
-      data: result, 
-      timestamp: Date.now() 
-    };
-    
-    return result;
-  } catch (error) {
-    console.error('Fel vid hämtning av topp-kurser:', error);
-    return { gainers: [], losers: [] };
-  }
-};
-
-// Utökad företagsinformation
-export const fetchExtendedCompanyInfo = async (ticker, apiKey) => {
-  // Först hämta grundläggande företagsöversikt
-  const overview = await fetchCompanyOverview(ticker, apiKey);
-  if (!overview) return null;
-  
-  // Simulerar ytterligare företagsdata (dessa API-endpoints finns inte i Alpha Vantage)
-  // I en riktig app skulle detta hämtas från ytterligare API-anrop
-  const cacheKey = `extended_info_${ticker}`;
-  const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 timmar
-  
-  if (isCacheValid(cacheKey, CACHE_DURATION)) {
-    console.log("Använder cachad utökad företagsinfo för:", ticker);
-    return { ...overview, ...apiCache[cacheKey].data };
-  }
-  
-  // Simulera ytterligare data
-  const extendedInfo = {
-    // Simulera insiderhandel
-    insiderTransactions: [
-      { 
-        date: '2023-05-15', 
-        name: 'Anna Andersson',
-        position: 'CEO',
-        type: 'Köp',
-        shares: 1000,
-        price: 150.50,
-        value: 150500
-      },
-      { 
-        date: '2023-04-22', 
-        name: 'Erik Eriksson',
-        position: 'CFO',
-        type: 'Sälj',
-        shares: 500,
-        price: 155.20,
-        value: 77600
-      }
-    ],
-    
-    // Simulera större ägare
-    majorShareholders: [
-      { name: 'Institutional Investor AB', shares: 1500000, percent: 15.2 },
-      { name: 'Global Asset Management', shares: 1200000, percent: 12.1 },
-      { name: 'Pension Fund Three', shares: 850000, percent: 8.6 }
-    ],
-    
-    // Simulera utdelningshistorik
-    dividendHistory: [
-      { year: '2023', amount: 5.50, yield: 3.2, exDate: '2023-04-15', paymentDate: '2023-05-01' },
-      { year: '2022', amount: 5.00, yield: 3.0, exDate: '2022-04-16', paymentDate: '2022-05-02' },
-      { year: '2021', amount: 4.50, yield: 2.8, exDate: '2021-04-15', paymentDate: '2021-05-03' }
-    ]
-  };
-  
-  apiCache[cacheKey] = { 
-    data: extendedInfo, 
-    timestamp: Date.now() 
-  };
-  
-  return { ...overview, ...extendedInfo };
-};
-
-// Hjälpfunktioner för formatering
+// Hjälpfunktioner för formatering (behålls på klienten)
 export const formatNumber = (num, decimals = 2) => {
   if (num === null || num === undefined || isNaN(num)) return '-';
   return num.toLocaleString('sv-SE', { 

@@ -1,60 +1,58 @@
 import React from 'react';
 import { Star } from 'lucide-react';
-import { formatNumber, formatLargeNumber } from '../services/apiService';
+import { formatLargeNumber } from '../services/apiService';
 
 const StockRow = ({ stockInfo, quote, onSelect, isSelected, isFavorite, onToggleFavorite }) => {
-  const price = quote?.price;
   const change = quote?.change;
   const changePercent = quote?.changePercent;
-  const volume = quote?.volume;
-  const marketCap = stockInfo.marketCap;
 
   const hasData = quote !== undefined;
 
+  const handleSelect = () => {
+    onSelect(stockInfo.ticker);
+  };
+
+  const handleToggleFavorite = (e) => {
+    e.stopPropagation(); // Förhindra radval när stjärnan klickas
+    onToggleFavorite(stockInfo.ticker);
+  };
+
   return (
     <tr 
-      className={`border-b border-gray-700 transition-colors duration-150 ${
-        isSelected ? 'bg-blue-900/50' : 'hover:bg-gray-700/70'
-      } ${!hasData ? 'opacity-50' : ''}`} 
-      onClick={() => hasData && onSelect(stockInfo.ticker)}
-      title={!hasData ? "Väntar på data..." : ""}
+      className={`cursor-pointer hover:bg-gray-200/50 dark:hover:bg-gray-700/50 ${isSelected ? 'bg-blue-100/50 dark:bg-blue-900/30' : ''}`} 
+      onClick={handleSelect}
     >
-      <td className="table-cell py-3 flex items-center">
-        <button 
-          onClick={(e) => { 
-            e.stopPropagation(); 
-            onToggleFavorite(stockInfo.ticker); 
-          }} 
-          className="mr-2 text-gray-500 hover:text-yellow-400 focus:outline-none transition-colors duration-150"
-          aria-label={isFavorite ? "Ta bort från favoriter" : "Lägg till i favoriter"}
-        >
-          <Star 
-            size={16} 
-            fill={isFavorite ? 'currentColor' : 'none'} 
-            className={isFavorite ? 'text-yellow-400' : ''} 
-          />
-        </button>
-        <div>
-          <div className="font-semibold text-white">{stockInfo.name}</div> 
-          <div className="text-xs text-gray-400">{stockInfo.ticker}</div>
+      <td className="px-4 text-sm py-3 pl-4 pr-2">
+        <div className="flex items-center">
+          <button 
+            onClick={handleToggleFavorite}
+            className={`mr-3 text-gray-400 hover:text-yellow-500 dark:hover:text-yellow-400 focus:outline-none transition-colors duration-150 ${isFavorite ? 'text-yellow-400' : ''}`}
+            aria-label={isFavorite ? "Ta bort från favoriter" : "Lägg till i favoriter"}
+          >
+            <Star size={16} fill={isFavorite ? 'currentColor' : 'none'} />
+          </button>
+          <div>
+            <div className="font-medium text-gray-900 dark:text-white">{stockInfo.ticker}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 truncate w-32 sm:w-auto">{stockInfo.name}</div>
+          </div>
         </div>
       </td>
-      <td className={`table-cell text-right ${!hasData ? 'text-gray-500' : change >= 0 ? 'text-green-400' : 'text-red-400'} font-medium`}>
-        {hasData ? formatNumber(price) : '...'}
+      <td className={`py-2 text-sm text-right ${!hasData ? 'text-gray-500' : change >= 0 ? 'text-green-400' : 'text-red-400'} font-medium px-2`}>
+        {hasData ? quote.price.toLocaleString('sv-SE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}
       </td>
-      <td className={`table-cell text-right ${!hasData ? 'text-gray-500' : change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+      <td className={`py-2 text-sm text-right ${!hasData ? 'text-gray-500' : change >= 0 ? 'text-green-400' : 'text-red-400'} px-2`}>
         {hasData ? (
-          <div className="flex items-center justify-end">
-            <span>{`${change >= 0 ? '+' : ''}${formatNumber(change)}`}</span>
-            <span className="ml-1 text-xs">{`(${changePercent >= 0 ? '+' : ''}${formatNumber(changePercent)}%)`}</span>
-          </div>
-        ) : '...'}
+          <span>
+            {changePercent >= 0 ? '+' : ''}
+            {changePercent.toLocaleString('sv-SE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}%
+          </span>
+        ) : '-'}
       </td>
-      <td className="table-cell text-right hidden md:table-cell text-gray-300">
-        {hasData ? formatLargeNumber(volume) : '...'}
+      <td className="py-2 text-sm text-right hidden md:table-cell text-gray-500 dark:text-gray-400 px-2">
+        {hasData ? formatLargeNumber(quote.volume) : '-'}
       </td>
-      <td className="table-cell text-right hidden lg:table-cell text-gray-300">
-        {formatLargeNumber(marketCap)} 
+      <td className="py-2 text-sm text-right hidden lg:table-cell text-gray-500 dark:text-gray-400 px-4 pr-4">
+        {stockInfo.marketCap ? formatLargeNumber(stockInfo.marketCap) : '-'}
       </td>
     </tr>
   );
