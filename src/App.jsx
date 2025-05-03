@@ -19,7 +19,7 @@ function App() {
 
   return (
     <div className="app-container bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col w-full">
-      <header className="app-header bg-gray-100 dark:bg-gray-800 shadow-md z-10 relative border-b dark:border-gray-700">
+      <header className="app-header bg-gray-100 dark:bg-gray-800 shadow-md z-10 sticky top-0 border-b dark:border-gray-700">
         <div className="logo-container flex items-center">
           <div className="logo">
             <LineChart size={28} className="text-blue-600 dark:text-blue-500" />
@@ -32,7 +32,7 @@ function App() {
         <div className="app-header-buttons">
           <button 
             onClick={handleToggleTheme}
-            className="p-2 rounded-md cursor-pointer trans"
+            className="p-2 cursor-pointer transition-colors hover:bg-gray-200 dark:hover:bg-gray-700"
             aria-label="Byt tema"
             title={`Nuvarande tema: ${theme}`}
           >
@@ -40,7 +40,7 @@ function App() {
           </button>
         </div>
       </header>
-      <main className="app-content flex-grow overflow-hidden">
+      <main className="app-content flex-grow overflow-auto">
         <StockApp />
       </main>
       <footer className="app-footer bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-t dark:border-gray-700 p-3 text-xs text-center">

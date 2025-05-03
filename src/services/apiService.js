@@ -182,39 +182,73 @@ export const fetchMarketIndex = async (symbol) => {
 // Hämta valutakurser - Behöver uppdateras för att använda proxy
 // TODO: Skapa en /api/currency endpoint på servern om denna funktion behövs.
 export const fetchCurrencyRate = async (fromCurrency, toCurrency) => {
-   console.warn("[Frontend] fetchCurrencyRate anropar inte proxy än. Behöver implementeras.");
-   // Temporärt returnera null
-   return null; 
-   /*
    const cacheKey = `currency_${fromCurrency}_${toCurrency}`;
-   // ... (resten av cache-logiken) ...
-   
-   try {
-     const response = await axios.get(`${PROXY_BASE_URL}/currency/${fromCurrency}/${toCurrency}`); // Exempel-URL
-     // ... (hantera response) ...
-   } catch (error) {
-      // ... (felhantering) ...
+   const CACHE_DURATION = 30 * 60 * 1000; // 30 minuter
+
+   if (isCacheValid(cacheKey, CACHE_DURATION)) {
+     console.log(`[Frontend] Använder cachad valutakurs för: ${fromCurrency}/${toCurrency}`);
+     return apiCache[cacheKey].data;
    }
-   */
+
+   console.log(`[Frontend] Hämtar valutakurs för ${fromCurrency}/${toCurrency} från proxy`);
+   try {
+     const response = await axios.get(`${PROXY_BASE_URL}/currency/${fromCurrency}/${toCurrency}`);
+     
+     if (response.data) {
+       apiCache[cacheKey] = { 
+         data: response.data, 
+         timestamp: Date.now() 
+       };
+       return response.data;
+     } else {
+       console.warn(`[Frontend] Ingen valutakursdata returnerades från proxy för ${fromCurrency}/${toCurrency}`);
+       return null;
+     }
+   } catch (error) {
+     console.error(`[Frontend] Fel vid hämtning av valutakursdata för ${fromCurrency}/${toCurrency}:`, 
+                  error.response ? error.response.data : error.message);
+     return null;
+   }
 };
 
 // Hämta dagens vinnare/förlorare - Behöver uppdateras för att använda proxy
 // TODO: Skapa en /api/topmovers endpoint på servern om denna funktion behövs.
 export const fetchTopMovers = async (stockList) => {
-   console.warn("[Frontend] fetchTopMovers anropar inte proxy än. Behöver implementeras.");
-   // Temporärt returnera tomma listor
-   return { gainers: [], losers: [] };
-   /*
    const cacheKey = 'top_movers';
-   // ... (resten av cache-logiken) ...
+   const CACHE_DURATION = 15 * 60 * 1000; // 15 minuter
 
-   try {
-       const response = await axios.post(`${PROXY_BASE_URL}/topmovers`, { stocks: stockList.map(s => s.ticker) }); // Skicka tickers till servern
-       // ... (hantera response) ...
-   } catch (error) {
-       // ... (felhantering) ...
+   if (isCacheValid(cacheKey, CACHE_DURATION)) {
+     console.log(`[Frontend] Använder cachade top movers`);
+     return apiCache[cacheKey].data;
    }
-   */
+
+   console.log(`[Frontend] Hämtar top movers från proxy`);
+   try {
+     // Konvertera stockList till rätt format
+     const stocksForPost = stockList.map(stock => {
+       if (typeof stock === 'object') {
+         return { ticker: stock.ticker, name: stock.name };
+       }
+       return stock;
+     });
+     
+     const response = await axios.post(`${PROXY_BASE_URL}/topmovers`, { stocks: stocksForPost });
+     
+     if (response.data) {
+       apiCache[cacheKey] = { 
+         data: response.data, 
+         timestamp: Date.now() 
+       };
+       return response.data;
+     } else {
+       console.warn(`[Frontend] Inga top movers returnerades från proxy`);
+       return { gainers: [], losers: [] };
+     }
+   } catch (error) {
+     console.error(`[Frontend] Fel vid hämtning av top movers:`, 
+                  error.response ? error.response.data : error.message);
+     return { gainers: [], losers: [] };
+   }
 };
 
 // Utökad företagsinformation - Anropas nu via fetchCompanyOverview

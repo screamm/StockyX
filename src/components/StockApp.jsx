@@ -170,14 +170,24 @@ const StockApp = () => {
 
     fetchDetails();
     
-    clearInterval(quoteUpdateIntervalRef.current);
+    // Spara en lokal referens till intervallets ID för cleanup
+    const prevInterval = quoteUpdateIntervalRef.current;
+    if (prevInterval) {
+      clearInterval(prevInterval);
+    }
+
     if (selectedStockTicker) {
         setActiveMainView('details');
     } else if (activeMainView === 'details') {
         setActiveMainView('dashboard');
     }
 
-    return () => clearInterval(quoteUpdateIntervalRef.current);
+    return () => {
+      // Använd den lokala referensen i cleanup
+      if (prevInterval) {
+        clearInterval(prevInterval);
+      }
+    };
   // Vi måste undanta stockInfoList, activeMainView, och stockQuotes från beroenden
   // för att undvika oönskade återrenderingar och potentiella oändliga loopar
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -263,9 +273,13 @@ const StockApp = () => {
     console.log('[StockApp] Uppdateringsloop för quotes är helt inaktiverad');
     
     // Cleanup för intervall om det tidigare har satts
+    // Spara en lokal referens till intervallets ID för cleanup
+    const currentInterval = quoteUpdateIntervalRef.current;
+    
     return () => {
-      if (quoteUpdateIntervalRef.current) {
-        clearInterval(quoteUpdateIntervalRef.current);
+      // Använd den lokala referensen i cleanup
+      if (currentInterval) {
+        clearInterval(currentInterval);
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -281,22 +295,22 @@ const StockApp = () => {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-gray-100 dark:bg-gray-900">
+    <div className="flex flex-col lg:flex-row h-full overflow-auto lg:overflow-hidden bg-gray-100 dark:bg-gray-900">
       {/* Vänster kolumn - Lista & Navigation */} 
-      <div className="w-full lg:w-1/3 xl:w-1/4 border-r border-gray-300 dark:border-gray-700 flex flex-col bg-white dark:bg-gray-900">
+      <div className="w-full lg:w-1/3 xl:w-1/4 border-r border-gray-300 dark:border-gray-700 flex flex-col bg-white dark:bg-gray-900 max-h-screen lg:max-h-none">
         {/* Navigation & Sök/Filter */} 
         <div className="p-4 border-b border-gray-300 dark:border-gray-700 space-y-3">
           {/* Vy-växlare */} 
           <div className="flex space-x-2 mb-3">
             <button
               onClick={() => setActiveMainView('dashboard')}
-              className={`inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${activeMainView === 'dashboard' ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600'} flex-1 flex items-center justify-center text-xs py-1 px-2`}
+              className={`inline-flex items-center justify-center border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${activeMainView === 'dashboard' ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 border-blue-700 dark:border-blue-700' : 'bg-white text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 border-gray-300 dark:border-gray-600 shadow-sm'} flex-1 flex items-center justify-center text-xs py-2 px-2`}
             >
               <Home size={14} className="mr-1" /> Översikt
             </button>
             <button
               onClick={() => setActiveMainView('screener')}
-              className={`inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${activeMainView === 'screener' ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600'} flex-1 flex items-center justify-center text-xs py-1 px-2`}
+              className={`inline-flex items-center justify-center border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${activeMainView === 'screener' ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 border-blue-700 dark:border-blue-700' : 'bg-white text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 border-gray-300 dark:border-gray-600 shadow-sm'} flex-1 flex items-center justify-center text-xs py-2 px-2`}
             >
               <SlidersHorizontal size={14} className="mr-1" /> Screener
             </button>
@@ -329,7 +343,7 @@ const StockApp = () => {
           <div className="flex items-center">
             <div className="flex space-x-2 text-sm">
               <button 
-                className={`p-1 px-2 border ${showOnlyFavorites ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-500 dark:border-blue-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600'} flex items-center text-xs`}
+                className={`p-1 px-2 flex items-center text-xs cursor-pointer transition-colors ${showOnlyFavorites ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-500 dark:border-blue-400' : 'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'}`}
                 onClick={toggleShowOnlyFavorites}
               >
                 <Star size={14} className="mr-1" />
@@ -341,7 +355,7 @@ const StockApp = () => {
               <button 
                 onClick={() => refreshStockPrices()}
                 disabled={isLoadingListQuotes}
-                className="p-1 px-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 flex items-center text-xs hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-150"
+                className="p-1 px-2 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 flex items-center text-xs transition-colors duration-150 cursor-pointer"
                 aria-label="Uppdatera alla kurser"
               >
                 <RefreshCw size={14} className={isLoadingListQuotes ? 'animate-spin' : ''} />
@@ -458,7 +472,7 @@ const StockApp = () => {
       </div>
       
       {/* Höger kolumn - Detaljer / Dashboard / Screener */} 
-      <div className="w-full lg:w-2/3 xl:w-3/4 flex flex-col bg-gray-200/30 dark:bg-gray-800">
+      <div className="w-full lg:w-2/3 xl:w-3/4 flex flex-col bg-gray-200/30 dark:bg-gray-800 max-h-screen lg:max-h-none">
         {selectedStockTicker ? ( // Visa ALLTID detaljer om en aktie är vald
           <> 
             {/* Aktie-header */}

@@ -241,3 +241,14 @@ input::placeholder {
   background-color: #1e293b !important;
   border-color: #334155 !important;
 }
+
+/* Ta bort alla rundade hörn för proffsigt och konsekvent utseende */
+[class*="rounded"], 
+button, 
+input, 
+select, 
+textarea, 
+.dashboard-placeholder, 
+[class*="border"] {
+  border-radius: 0 !important;
+}

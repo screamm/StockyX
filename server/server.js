@@ -272,6 +272,117 @@ app.get('/api/news', async (req, res) => {
   }
 });
 
+// Endpoint för valutakurser
+app.get('/api/currency/:fromCurrency/:toCurrency', async (req, res) => {
+  const { fromCurrency, toCurrency } = req.params;
+  console.log(`[Server] Mottog begäran för valutakurs: ${fromCurrency}/${toCurrency}`);
+
+  if (!ALPHA_VANTAGE_API_KEY) {
+    return res.status(500).json({ error: 'Alpha Vantage API-nyckel saknas på servern.' });
+  }
+
+  try {
+    // Hämta realtime valutakurs
+    const params = {
+      function: 'CURRENCY_EXCHANGE_RATE',
+      from_currency: fromCurrency,
+      to_currency: toCurrency,
+      apikey: ALPHA_VANTAGE_API_KEY
+    };
+    
+    const response = await axios.get(AV_BASE_URL, { params });
+    
+    const exchangeRateData = response.data['Realtime Currency Exchange Rate'];
+    
+    if (!exchangeRateData || !exchangeRateData['5. Exchange Rate']) {
+      console.warn(`[Server] Ingen valutakursdata hittades för ${fromCurrency}/${toCurrency}`);
+      return res.status(404).json({ error: 'Kunde inte hämta valutakursdata.' });
+    }
+    
+    // För historisk data/procentuell förändring (enkel simulering om Alpha Vantage inte har FX_DAILY data)
+    // Detta ger en simulerad förändring om vi inte har tillgång till historiska data
+    const rate = parseFloat(exchangeRateData['5. Exchange Rate']);
+    const changePercent = (Math.random() * 2 - 1) * 0.5; // -0.5% till +0.5% 
+    const change = rate * (changePercent / 100);
+    
+    // Formatera och returnera data
+    const currencyData = {
+      rate,
+      change,
+      changePercent,
+      lastUpdate: new Date().toISOString()
+    };
+    
+    console.log(`[Server] Skickar valutakurs för ${fromCurrency}/${toCurrency}: ${rate}`);
+    res.json(currencyData);
+    
+  } catch (error) {
+    console.error(`[Server] Fel vid hämtning av valutakurs för ${fromCurrency}/${toCurrency}:`, error.message);
+    res.status(500).json({ error: 'Internt serverfel vid hämtning av valutakursdata.' });
+  }
+});
+
+// Endpoint för top movers (vinnare & förlorare)
+app.post('/api/topmovers', async (req, res) => {
+  console.log(`[Server] Mottog begäran för top movers`);
+  
+  if (!req.body || !req.body.stocks || !Array.isArray(req.body.stocks)) {
+    return res.status(400).json({ error: 'Ingen giltig stockList skickades.' });
+  }
+  
+  const stockList = req.body.stocks;
+  
+  if (stockList.length === 0) {
+    return res.status(400).json({ error: 'Aktielistan är tom.' });
+  }
+  
+  try {
+    // Simulerad data skapad från stockList - i en produktionsmiljö skulle vi hämta faktiska data
+    // från Alpha Vantage eller Yahoo Finance för varje aktie och sortera baserat på daglig förändring
+    
+    const stocksWithSimulatedChanges = stockList.map(stock => {
+      const tickerObj = typeof stock === 'object' ? stock : { ticker: stock };
+      const ticker = tickerObj.ticker;
+      const name = tickerObj.name || ticker;
+      
+      // Slumpa fram en simulerad pris och ändring för demo-ändamål
+      // I verkligheten skulle dessa värden komma från API:et
+      const changePercent = (Math.random() * 10) - 5; // -5% till +5%
+      const price = 100 + (Math.random() * 900); // 100 till 1000
+      const change = price * (changePercent / 100);
+      
+      return {
+        ticker,
+        name,
+        price,
+        change,
+        changePercent
+      };
+    });
+    
+    // Sortera i vinnare och förlorare
+    const gainers = stocksWithSimulatedChanges
+      .filter(stock => stock.changePercent > 0)
+      .sort((a, b) => b.changePercent - a.changePercent)
+      .slice(0, 5);
+      
+    const losers = stocksWithSimulatedChanges
+      .filter(stock => stock.changePercent < 0)
+      .sort((a, b) => a.changePercent - b.changePercent)
+      .slice(0, 5);
+    
+    console.log(`[Server] Skickar top movers: ${gainers.length} vinnare, ${losers.length} förlorare`);
+    res.json({
+      gainers,
+      losers
+    });
+    
+  } catch (error) {
+    console.error('[Server] Fel vid beräkning av top movers:', error.message);
+    res.status(500).json({ error: 'Internt serverfel vid beräkning av top movers.' });
+  }
+});
+
 // --- Starta Servern --- 
 app.listen(PORT, () => {
   console.log(`[Server] Backend-proxy körs på http://localhost:${PORT}`);
