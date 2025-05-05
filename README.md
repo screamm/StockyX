@@ -2,7 +2,7 @@
 
 En modern aktiehanteringsplattform för att övervaka, analysera och följa aktiekurser i realtid.
 
-![StockyX Screenshot](./screenshot1.png)
+![StockyX Screenshot](./images/screenshot1.png)
 *Lägg till en skärmdump av applikationen här*
 
 ## 🌟 Funktioner
