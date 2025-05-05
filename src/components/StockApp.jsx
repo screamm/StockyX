@@ -2,24 +2,22 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { debounce } from 'lodash';
 import { 
   ChevronDown, ChevronUp, RefreshCw, Search, Star, 
-  BarChart2, Newspaper, AlertTriangle, Clock 
+  BarChart2, Newspaper, AlertTriangle, Clock, Home, SlidersHorizontal, List, X
 } from 'lucide-react';
 
 import {
   fetchStockQuote,
   fetchDailyHistory,
-  fetchCompanyOverview,
-  fetchNews
+  fetchNews,
+  fetchExtendedCompanyInfo,
 } from '../services/apiService';
 
 import StockRow from './StockRow';
 import StockChart from './StockChart';
 import StockInfo from './StockInfo';
 import NewsFeed from './NewsFeed';
-
-// API-nycklar (ersätt med dina egna)
-const ALPHA_VANTAGE_API_KEY = 'YOUR_ALPHA_VANTAGE_KEY';
-const NEWS_API_KEY = 'YOUR_NEWSAPI_KEY';
+import Dashboard from './Dashboard';
+import StockScreener from './StockScreener';
 
 const StockApp = () => {
   // Initial lista med aktier
@@ -52,19 +50,15 @@ const StockApp = () => {
     return saved ? JSON.parse(saved) : [];
   });
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
-  const [activeTab, setActiveTab] = useState('chart'); // 'chart' eller 'news'
+  const [activeDetailTab, setActiveDetailTab] = useState('chart');
+  const [activeMainView, setActiveMainView] = useState('dashboard');
 
   // Laddnings- och felstate
   const [isLoadingListQuotes, setIsLoadingListQuotes] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [errorState, setErrorState] = useState({ list: null, details: null });
 
-  // API nycklar
-  const [apiKeyAV, setApiKeyAV] = useState(ALPHA_VANTAGE_API_KEY);
-  const [apiKeyNews, setApiKeyNews] = useState(NEWS_API_KEY);
-
   const quoteUpdateIntervalRef = useRef(null);
-  const rateLimitDelay = 15000; // 15 sekunder mellan anrop
 
   // Debounce sökning
   useEffect(() => {
@@ -78,18 +72,24 @@ const StockApp = () => {
     localStorage.setItem('favoriteStocks', JSON.stringify(favoriteStocks));
   }, [favoriteStocks]);
   
-  // Hämta initiala quotes för favoriter
+  // Hämta initiala quotes - hämtar nu ALLA från initialStockList om inga favoriter finns
   useEffect(() => {
     const fetchQuoteWithDelay = async (ticker, delay) => {
       return new Promise(resolve => {
         setTimeout(async () => {
           try {
-            const quote = await fetchStockQuote(ticker, apiKeyAV);
+            const quote = await fetchStockQuote(ticker);
             if (quote) {
               setStockQuotes(prev => ({ ...prev, [ticker]: quote }));
+            } else {
+              // Sätt ett felmeddelande om en specifik aktie misslyckas?
+              // Eller låt raden bara vara tom?
+              console.warn(`[StockApp] Kunde inte hämta initial quote för ${ticker}`);
             }
           } catch (error) {
-            console.error('Fel vid hämtning:', error);
+            console.error(`[StockApp] Fel vid hämtning av initial quote för ${ticker}:`, error);
+            // Kanske sätta ett generellt list-fel?
+            setErrorState(prev => ({ ...prev, list: "Fel vid hämtning av initial data."}));
           }
           resolve();
         }, delay);
@@ -97,33 +97,28 @@ const StockApp = () => {
     };
 
     const fetchInitialQuotes = async () => {
-      if (!apiKeyAV || apiKeyAV === 'YOUR_ALPHA_VANTAGE_KEY') {
-        setErrorState(prev => ({ ...prev, list: "Alpha Vantage API-nyckel saknas." }));
-        return;
-      }
-
       setIsLoadingListQuotes(true);
       setErrorState(prev => ({ ...prev, list: null }));
       
-      const tickersToFetch = [...favoriteStocks];
+      // Bestäm vilka tickers som ska hämtas: favoriter eller alla initiala
+      let tickersToFetch = favoriteStocks.length > 0 ? favoriteStocks : initialStockList.map(s => s.ticker);
       
-      // Lägg till de första i listan som inte är favoriter
-      const nonFavorites = stockInfoList
-        .filter(s => !tickersToFetch.includes(s.ticker))
-        .slice(0, 5)
-        .map(s => s.ticker);
+      console.log('[StockApp useEffect] Fetching initial quotes for:', tickersToFetch);
       
-      tickersToFetch.push(...nonFavorites);
+      // Skapa en array av promises för att hämta alla quotes parallellt med fördröjning
+      const quotePromises = tickersToFetch.map((ticker, index) => 
+        fetchQuoteWithDelay(ticker, index * 200) // Liten fördröjning (200ms) mellan varje anrop
+      );
       
-      for (let i = 0; i < tickersToFetch.length; i++) {
-        await fetchQuoteWithDelay(tickersToFetch[i], i * rateLimitDelay);
-      }
+      // Vänta på att alla anrop ska slutföras
+      await Promise.all(quotePromises);
       
       setIsLoadingListQuotes(false);
+      console.log('[StockApp useEffect] Finished fetching initial quotes.');
     };
     
     fetchInitialQuotes();
-  }, [apiKeyAV, favoriteStocks, stockInfoList]);
+  }, [favoriteStocks, initialStockList]);
 
   // Hämta detaljer när en aktie väljs
   useEffect(() => {
@@ -137,37 +132,32 @@ const StockApp = () => {
       setSelectedStockNews([]);
 
       try {
-        // Hämta quote om den inte redan finns
         if (!stockQuotes[selectedStockTicker]) {
-          const quote = await fetchStockQuote(selectedStockTicker, apiKeyAV);
+          const quote = await fetchStockQuote(selectedStockTicker);
           if (quote) {
             setStockQuotes(prev => ({ ...prev, [selectedStockTicker]: quote }));
           }
         }
 
-        // Historisk data (med fördröjning för rate limit)
-        await new Promise(r => setTimeout(r, rateLimitDelay));
-        const history = await fetchDailyHistory(selectedStockTicker, apiKeyAV);
+        await new Promise(r => setTimeout(r, 500));
+        const history = await fetchDailyHistory(selectedStockTicker);
         setSelectedStockHistory(history || []);
 
-        // Företagsinformation (med fördröjning)
-        await new Promise(r => setTimeout(r, rateLimitDelay));
-        const overview = await fetchCompanyOverview(selectedStockTicker, apiKeyAV);
-        setSelectedStockOverview(overview);
+        await new Promise(r => setTimeout(r, 500));
+        const extendedInfo = await fetchExtendedCompanyInfo(selectedStockTicker);
+        setSelectedStockOverview(extendedInfo);
         
-        // Uppdatera marketCap i huvudlistan om vi fick en nyare
-        if (overview && overview.marketCap) {
+        if (extendedInfo && extendedInfo.marketCap) {
           setStockInfoList(prevList => prevList.map(stock => 
             stock.ticker === selectedStockTicker 
-            ? { ...stock, marketCap: overview.marketCap } 
+            ? { ...stock, marketCap: extendedInfo.marketCap } 
             : stock
           ));
         }
 
-        // Nyheter
         const stockName = stockInfoList.find(s => s.ticker === selectedStockTicker)?.name || selectedStockTicker;
         const newsQuery = `${stockName} OR ${selectedStockTicker}`;
-        const news = await fetchNews(newsQuery, apiKeyNews);
+        const news = await fetchNews(newsQuery);
         setSelectedStockNews(news);
 
       } catch (error) {
@@ -180,23 +170,28 @@ const StockApp = () => {
 
     fetchDetails();
     
-    // Uppdatera den valda aktiens kurs regelbundet
-    clearInterval(quoteUpdateIntervalRef.current);
-    if (selectedStockTicker && apiKeyAV && apiKeyAV !== 'YOUR_ALPHA_VANTAGE_KEY') {
-      quoteUpdateIntervalRef.current = setInterval(async () => {
-        try {
-          const quote = await fetchStockQuote(selectedStockTicker, apiKeyAV);
-          if (quote) {
-            setStockQuotes(prev => ({ ...prev, [selectedStockTicker]: quote }));
-          }
-        } catch (error) {
-          console.error('Fel vid uppdatering:', error);
-        }
-      }, 60 * 1000); // En gång per minut
+    // Spara en lokal referens till intervallets ID för cleanup
+    const prevInterval = quoteUpdateIntervalRef.current;
+    if (prevInterval) {
+      clearInterval(prevInterval);
     }
 
-    return () => clearInterval(quoteUpdateIntervalRef.current);
-  }, [selectedStockTicker, apiKeyAV, apiKeyNews, stockInfoList]);
+    if (selectedStockTicker) {
+        setActiveMainView('details');
+    } else if (activeMainView === 'details') {
+        setActiveMainView('dashboard');
+    }
+
+    return () => {
+      // Använd den lokala referensen i cleanup
+      if (prevInterval) {
+        clearInterval(prevInterval);
+      }
+    };
+  // Vi måste undanta stockInfoList, activeMainView, och stockQuotes från beroenden
+  // för att undvika oönskade återrenderingar och potentiella oändliga loopar
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStockTicker]);
 
   // Filtrering och sortering
   const filteredAndSortedStocks = useMemo(() => {
@@ -245,7 +240,7 @@ const StockApp = () => {
     }
     
     return result;
-  }, [stockInfoList, stockQuotes, debouncedSearchQuery, showOnlyFavorites, favoriteStocks, sortConfig]);
+  }, [stockInfoList, debouncedSearchQuery, showOnlyFavorites, favoriteStocks, sortConfig, stockQuotes]);
 
   // Sortering
   const requestSort = (key) => {
@@ -271,173 +266,240 @@ const StockApp = () => {
   // Hämta aktuell quote för vald aktie
   const currentSelectedQuote = stockQuotes[selectedStockTicker];
 
+  // Åtgärd: Detta är källan till den oändliga loopen - den uppdaterar stockQuotes
+  // vilket i sin tur ändrar filteredAndSortedStocks via dependencies.
+  useEffect(() => {
+    // TEMPORÄRT INAKTIVERAD - För att förhindra oändlig loop
+    console.log('[StockApp] Uppdateringsloop för quotes är helt inaktiverad');
+    
+    // Cleanup för intervall om det tidigare har satts
+    // Spara en lokal referens till intervallets ID för cleanup
+    const currentInterval = quoteUpdateIntervalRef.current;
+    
+    return () => {
+      // Använd den lokala referensen i cleanup
+      if (currentInterval) {
+        clearInterval(currentInterval);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStockTicker]); // Minimalt beroende för att undvika oändlig loop
+
+  const toggleShowOnlyFavorites = () => {
+    setShowOnlyFavorites(!showOnlyFavorites);
+  };
+
+  const refreshStockPrices = () => {
+    // Implementera logiken för att uppdatera alla kurser
+    console.log('Uppdatera alla kurser');
+  };
+
   return (
-    <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-dark-900">
-      {/* Vänster kolumn - Aktielista */}
-      <div className="w-full lg:w-1/3 xl:w-1/4 border-r border-gray-700 flex flex-col bg-gray-900">
-        {/* Sök & filter */}
-        <div className="p-4 border-b border-gray-700 space-y-3">
-          {/* API nyckel varning */}
-          {(!apiKeyAV || apiKeyAV === 'YOUR_ALPHA_VANTAGE_KEY') && (
-            <div className="badge badge-error p-2 mb-2 flex items-center">
-              <AlertTriangle size={14} className="mr-1"/> Alpha Vantage API-nyckel saknas. Data kan ej hämtas.
-            </div>
-          )}
-          {(!apiKeyNews || apiKeyNews === 'YOUR_NEWSAPI_KEY') && (
-            <div className="badge badge-warning p-2 mb-2 flex items-center">
-              <AlertTriangle size={14} className="mr-1"/> NewsAPI-nyckel saknas. Nyheter kan ej hämtas.
-            </div>
-          )}
+    <div className="flex flex-col lg:flex-row h-full overflow-auto lg:overflow-hidden bg-gray-100 dark:bg-gray-900">
+      {/* Vänster kolumn - Lista & Navigation */} 
+      <div className="w-full lg:w-1/3 xl:w-1/4 border-r border-gray-300 dark:border-gray-700 flex flex-col bg-white dark:bg-gray-900 max-h-screen lg:max-h-none">
+        {/* Navigation & Sök/Filter */} 
+        <div className="p-4 border-b border-gray-300 dark:border-gray-700 space-y-3">
+          {/* Vy-växlare */} 
+          <div className="flex space-x-2 mb-3">
+            <button
+              onClick={() => setActiveMainView('dashboard')}
+              className={`inline-flex items-center justify-center border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${activeMainView === 'dashboard' ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 border-blue-700 dark:border-blue-700' : 'bg-white text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 border-gray-300 dark:border-gray-600 shadow-sm'} flex-1 flex items-center justify-center text-xs py-2 px-2`}
+            >
+              <Home size={14} className="mr-1" /> Översikt
+            </button>
+            <button
+              onClick={() => setActiveMainView('screener')}
+              className={`inline-flex items-center justify-center border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${activeMainView === 'screener' ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 border-blue-700 dark:border-blue-700' : 'bg-white text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 border-gray-300 dark:border-gray-600 shadow-sm'} flex-1 flex items-center justify-center text-xs py-2 px-2`}
+            >
+              <SlidersHorizontal size={14} className="mr-1" /> Screener
+            </button>
+          </div>
           
-          {/* Sökfält */}
+          {/* Sökruta */}
           <div className="relative">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Search size={16} className="text-gray-500 dark:text-gray-400" />
+            </div>
             <input 
               type="text" 
-              placeholder="Sök aktie..."
-              className="form-input pl-8"
+              className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm block w-full pl-10 p-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
+              placeholder="Sök aktie..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <Search size={16} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500" />
+            {searchQuery && (
+              <button 
+                className="absolute inset-y-0 right-0 flex items-center pr-3"
+                onClick={() => setSearchQuery('')}
+                aria-label="Rensa sökning"
+              >
+                <X size={16} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" />
+              </button>
+            )}
           </div>
-          
-          {/* Filter */}
-          <div className="flex justify-between items-center text-xs">
-            <button 
-              onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
-              className={`btn ${showOnlyFavorites ? 'btn-primary' : 'btn-secondary'} py-1 px-3 flex items-center`}
-            >
-              <Star size={14} className="mr-1" /> Favoriter
-            </button>
-            <span className="text-gray-400">
-              {isLoadingListQuotes && <RefreshCw size={14} className="inline animate-spin mr-1"/>}
-              {filteredAndSortedStocks.length} träffar
-            </span>
-          </div>
-          
-          {errorState.list && <p className="text-xs text-red-400 mt-1">{errorState.list}</p>}
-        </div>
 
-        {/* Aktielista */}
-        <div className="flex-grow overflow-y-auto">
-          <table className="w-full text-sm table-fixed">
-            <thead className="sticky top-0 bg-gray-800 z-10 shadow-sm">
-              <tr>
-                <th 
-                  className="table-header w-2/6 rounded-tl-md" 
-                  onClick={() => requestSort('name')}
-                >
-                  Namn
-                  {sortConfig.key === 'name' && (
-                    <span className="ml-1">
-                      {sortConfig.direction === 'ascending' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </th>
-                <th 
-                  className="table-header w-1/6" 
-                  onClick={() => requestSort('price')}
-                >
-                  Pris
-                  {sortConfig.key === 'price' && (
-                    <span className="ml-1">
-                      {sortConfig.direction === 'ascending' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </th>
-                <th 
-                  className="table-header w-1/6" 
-                  onClick={() => requestSort('changePercent')}
-                >
-                  +/- %
-                  {sortConfig.key === 'changePercent' && (
-                    <span className="ml-1">
-                      {sortConfig.direction === 'ascending' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </th>
-                <th 
-                  className="table-header w-1/6 hidden md:table-cell" 
-                  onClick={() => requestSort('volume')}
-                >
-                  Volym
-                  {sortConfig.key === 'volume' && (
-                    <span className="ml-1">
-                      {sortConfig.direction === 'ascending' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </th>
-                <th 
-                  className="table-header w-1/6 hidden lg:table-cell rounded-tr-md" 
-                  onClick={() => requestSort('marketCap')}
-                >
-                  Börsv.
-                  {sortConfig.key === 'marketCap' && (
-                    <span className="ml-1">
-                      {sortConfig.direction === 'ascending' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAndSortedStocks.map(stockInfo => (
-                <StockRow 
-                  key={stockInfo.ticker} 
-                  stockInfo={stockInfo} 
-                  quote={stockQuotes[stockInfo.ticker]} 
-                  onSelect={setSelectedStockTicker}
-                  isSelected={selectedStockTicker === stockInfo.ticker}
-                  isFavorite={favoriteStocks.includes(stockInfo.ticker)}
-                  onToggleFavorite={toggleFavorite}
-                />
-              ))}
-              {filteredAndSortedStocks.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="text-center py-8 text-gray-500">
-                    Inga aktier hittades
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          {/* Filter och sortering */}
+          <div className="flex items-center">
+            <div className="flex space-x-2 text-sm">
+              <button 
+                className={`p-1 px-2 flex items-center text-xs cursor-pointer transition-colors ${showOnlyFavorites ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-500 dark:border-blue-400' : 'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'}`}
+                onClick={toggleShowOnlyFavorites}
+              >
+                <Star size={14} className="mr-1" />
+                Favoriter
+              </button>
+            </div>
+            
+            <div className="flex ml-auto space-x-2">
+              <button 
+                onClick={() => refreshStockPrices()}
+                disabled={isLoadingListQuotes}
+                className="p-1 px-2 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 flex items-center text-xs transition-colors duration-150 cursor-pointer"
+                aria-label="Uppdatera alla kurser"
+              >
+                <RefreshCw size={14} className={isLoadingListQuotes ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          </div>
         </div>
         
-        {/* Footer */}
-        <div className="p-2 text-xs text-gray-500 border-t border-gray-700 text-center flex items-center justify-center bg-gray-800">
-          <Clock size={12} className="mr-1"/> Data från Alpha Vantage & NewsAPI (kan vara fördröjd)
+        {/* Aktielista */}
+        <div className="flex-grow overflow-auto">
+          {errorState.list && (
+            <div className="text-red-500 dark:text-red-400 p-4 text-center border-b border-gray-300 dark:border-gray-700 bg-red-50 dark:bg-red-900/10">
+              <AlertTriangle size={16} className="mr-1 inline" />
+              {errorState.list}
+            </div>
+          )}
+
+          <div className="border-b border-gray-300 dark:border-gray-700">
+            <table className="w-full">
+              <thead className="bg-gray-100 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300 uppercase text-left">
+                <tr>
+                  <th className="p-2 pl-4 pr-2 select-none cursor-pointer" onClick={() => requestSort('ticker')}>
+                    <div className="flex items-center">
+                      Aktie
+                      {sortConfig.key === 'ticker' && (
+                        <span className="ml-1">
+                          {sortConfig.direction === 'ascending' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th className="p-2 text-right select-none cursor-pointer" onClick={() => requestSort('price')}>
+                    <div className="flex items-center justify-end">
+                      Kurs
+                      {sortConfig.key === 'price' && (
+                        <span className="ml-1">
+                          {sortConfig.direction === 'ascending' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th className="p-2 text-right select-none cursor-pointer" onClick={() => requestSort('changePercent')}>
+                    <div className="flex items-center justify-end">
+                      %
+                      {sortConfig.key === 'changePercent' && (
+                        <span className="ml-1">
+                          {sortConfig.direction === 'ascending' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th className="p-2 text-right select-none cursor-pointer hidden md:table-cell" onClick={() => requestSort('volume')}>
+                    <div className="flex items-center justify-end">
+                      Volym
+                      {sortConfig.key === 'volume' && (
+                        <span className="ml-1">
+                          {sortConfig.direction === 'ascending' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th className="p-2 text-right pr-4 select-none cursor-pointer hidden lg:table-cell" onClick={() => requestSort('marketCap')}>
+                    <div className="flex items-center justify-end">
+                      Börsv.
+                      {sortConfig.key === 'marketCap' && (
+                        <span className="ml-1">
+                          {sortConfig.direction === 'ascending' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-700 dark:text-gray-300 divide-y divide-gray-200 dark:divide-gray-700">
+                {filteredAndSortedStocks.length > 0 ? (
+                  filteredAndSortedStocks.map((stockInfo) => (
+                    <StockRow
+                      key={stockInfo.ticker}
+                      stockInfo={stockInfo}
+                      quote={stockQuotes[stockInfo.ticker]}
+                      onSelect={setSelectedStockTicker}
+                      isSelected={stockInfo.ticker === selectedStockTicker}
+                      isFavorite={favoriteStocks.includes(stockInfo.ticker)}
+                      onToggleFavorite={toggleFavorite}
+                    />
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="text-center py-6 text-gray-400 dark:text-gray-500">
+                      {searchQuery ? (
+                        <>
+                          <Search size={36} className="inline-block mb-2 opacity-30" />
+                          <p>Inga aktier matchade din sökning "{searchQuery}"</p>
+                        </>
+                      ) : showOnlyFavorites ? (
+                        <>
+                          <Star size={36} className="inline-block mb-2 opacity-30" />
+                          <p>Du har inga favoriter ännu</p>
+                          <p className="text-sm mt-1">Klicka på stjärnan bredvid en aktie för att lägga till den.</p>
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle size={36} className="inline-block mb-2 opacity-30" />
+                          <p>Ingen data kunde hämtas</p>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-
-      {/* Höger kolumn - Detaljer */}
-      <div className="w-full lg:w-2/3 xl:w-3/4 flex flex-col bg-gray-800/30">
-        {selectedStockTicker ? (
-          <>
+      
+      {/* Höger kolumn - Detaljer / Dashboard / Screener */} 
+      <div className="w-full lg:w-2/3 xl:w-3/4 flex flex-col bg-gray-200/30 dark:bg-gray-800 max-h-screen lg:max-h-none">
+        {selectedStockTicker ? ( // Visa ALLTID detaljer om en aktie är vald
+          <> 
             {/* Aktie-header */}
-            <div className="p-4 border-b border-gray-700 bg-gray-800 relative">
+            <div className="p-4 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 relative">
               {isLoadingDetails && (
-                <div className="absolute top-4 right-4 text-xs text-gray-400 flex items-center">
+                <div className="absolute top-4 right-4 text-xs text-gray-500 dark:text-gray-400 flex items-center">
                   <RefreshCw size={12} className="animate-spin mr-1"/> 
                   Laddar detaljer...
                 </div>
               )}
               {errorState.details && (
-                <div className="absolute top-4 right-4 text-xs text-red-400 flex items-center">
+                <div className="absolute top-4 right-4 text-xs text-red-600 dark:text-red-400 flex items-center">
                   <AlertTriangle size={12} className="mr-1"/> 
                   {errorState.details}
                 </div>
               )}
 
               <div className="flex justify-between items-center mb-3">
-                <h2 className="text-2xl font-semibold">
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
                   {stockInfoList.find(s => s.ticker === selectedStockTicker)?.name || selectedStockTicker}
-                  <span className="text-gray-400 ml-2 text-sm">
+                  <span className="text-gray-500 dark:text-gray-400 ml-2 text-sm">
                     {selectedStockTicker}
                   </span>
                 </h2>
                 <button 
                   onClick={() => toggleFavorite(selectedStockTicker)} 
-                  className="text-gray-500 hover:text-yellow-400 focus:outline-none transition-colors duration-150"
+                  className="text-gray-400 hover:text-yellow-500 dark:text-gray-500 dark:hover:text-yellow-400 focus:outline-none transition-colors duration-150"
                   aria-label={favoriteStocks.includes(selectedStockTicker) ? "Ta bort från favoriter" : "Lägg till i favoriter"}
                 >
                   <Star 
@@ -451,13 +513,13 @@ const StockApp = () => {
               {currentSelectedQuote ? (
                 <>
                   <div className="flex items-baseline space-x-4">
-                    <span className="text-3xl font-bold">
+                    <span className="text-3xl font-bold text-gray-900 dark:text-white">
                       {currentSelectedQuote.price.toLocaleString('sv-SE', { 
                         minimumFractionDigits: 2, 
                         maximumFractionDigits: 2 
                       })}
                     </span>
-                    <span className={`text-xl ${currentSelectedQuote.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <span className={`text-xl ${currentSelectedQuote.change >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                       {currentSelectedQuote.change >= 0 ? '+' : ''}
                       {currentSelectedQuote.change.toLocaleString('sv-SE', { 
                         minimumFractionDigits: 2, 
@@ -472,54 +534,54 @@ const StockApp = () => {
                       </span>
                     </span>
                   </div>
-                  <div className="text-xs text-gray-400 mt-1 flex flex-wrap items-center">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap items-center">
                     {selectedStockOverview?.sector && (
                       <span className="mr-3">{selectedStockOverview.sector}</span>
                     )}
                     <span className="mr-3">
                       Uppdaterad: {currentSelectedQuote.lastTradingDay ? new Date(currentSelectedQuote.lastTradingDay).toLocaleDateString('sv-SE') : 'Okänt'}
                     </span>
-                    <span className="badge badge-warning">FÖRDRÖJD DATA</span>
+                    <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-600 dark:text-yellow-100">FÖRDRÖJD DATA</span>
                   </div>
                 </>
               ) : (
-                <div className="text-gray-500 flex items-center">
+                <div className="text-gray-500 dark:text-gray-500 flex items-center">
                   <RefreshCw size={14} className="animate-spin mr-1"/> 
                   Laddar prisdata...
                 </div>
               )}
             </div>
 
-            {/* Flikar */}
-            <div className="flex border-b border-gray-700 bg-gray-800/80 text-sm">
+            {/* Flikar (byter nu activeDetailTab) */} 
+            <div className="flex border-b border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/80 text-sm">
               <button 
-                className={`px-5 py-3 flex items-center transition-colors duration-150 ${
-                  activeTab === 'chart' 
-                    ? 'border-b-2 border-primary text-white font-medium' 
-                    : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                className={`px-5 py-3 flex items-center transition-colors duration-150 ${ 
+                  activeDetailTab === 'chart' 
+                    ? 'border-b-2 border-blue-600 text-gray-900 dark:border-primary dark:text-white font-medium' 
+                    : 'text-gray-600 hover:bg-gray-300 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200'
                 }`}
-                onClick={() => setActiveTab('chart')}
+                onClick={() => setActiveDetailTab('chart')}
               >
                 <BarChart2 size={16} className="mr-2"/> Graf & Info
               </button>
               <button 
-                className={`px-5 py-3 flex items-center transition-colors duration-150 ${
-                  activeTab === 'news' 
-                    ? 'border-b-2 border-primary text-white font-medium' 
-                    : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                className={`px-5 py-3 flex items-center transition-colors duration-150 ${ 
+                  activeDetailTab === 'news' 
+                    ? 'border-b-2 border-blue-600 text-gray-900 dark:border-primary dark:text-white font-medium' 
+                    : 'text-gray-600 hover:bg-gray-300 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200'
                 }`}
-                onClick={() => setActiveTab('news')}
+                onClick={() => setActiveDetailTab('news')}
               >
                 <Newspaper size={16} className="mr-2"/> Nyheter
               </button>
             </div>
 
-            {/* Innehåll */}
-            <div className="flex-grow p-4 overflow-y-auto space-y-6 bg-gray-900/20">
-              {activeTab === 'chart' ? (
-                <>
+            {/* Innehåll (styrs av activeDetailTab) */} 
+            <div className="flex-grow p-4 overflow-y-auto space-y-6 bg-gray-100 dark:bg-gray-900/20">
+              {activeDetailTab === 'chart' ? (
+                <> 
                   {/* Graf */}
-                  <div className="card">
+                  <div className="border border-gray-300 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800">
                     <StockChart 
                       ticker={selectedStockTicker}
                       historyData={selectedStockHistory}
@@ -529,7 +591,7 @@ const StockApp = () => {
                   </div>
                   
                   {/* Info */}
-                  <div className="card">
+                  <div className="border border-gray-300 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800">
                     <StockInfo 
                       ticker={selectedStockTicker}
                       overviewData={selectedStockOverview}
@@ -541,7 +603,7 @@ const StockApp = () => {
                 </>
               ) : (
                 /* Nyheter */
-                <div className="card">
+                <div className="border border-gray-300 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800">
                   <NewsFeed 
                     ticker={selectedStockTicker}
                     newsData={selectedStockNews}
@@ -552,15 +614,22 @@ const StockApp = () => {
               )}
             </div>
           </>
-        ) : (
-          <div className="flex-grow flex flex-col items-center justify-center text-gray-500 p-8">
-            <BarChart2 size={64} className="mb-4 text-gray-400" />
-            <h3 className="text-xl font-medium mb-2">Välj en aktie från listan</h3>
-            <p className="text-gray-400 text-center max-w-md">
-              Välj en aktie från listan till vänster för att se detaljerad information, grafer och nyheter.
-            </p>
+        ) : activeMainView === 'dashboard' ? ( // Om ingen aktie vald OCH dashboard är aktiv
+          <div className="flex-grow p-6 overflow-y-auto bg-gray-100 dark:bg-gray-900/20">
+            <Dashboard 
+              stockList={stockInfoList} 
+            />
           </div>
-        )}
+        ) : activeMainView === 'screener' ? ( // Om ingen aktie vald OCH screener är aktiv
+           <StockScreener 
+             allStocks={stockInfoList} // Skicka med hela listan för filtrering
+           />
+        ) : (
+            // Fallback om ingen vy matchar (bör inte hända)
+            <div className="flex-grow p-6 flex items-center justify-center text-gray-500 dark:text-gray-500">
+                Välj en aktie från listan eller en vy ovan.
+            </div>
+        )} 
       </div>
     </div>
   );

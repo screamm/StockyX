@@ -11,15 +11,15 @@ const StockChart = ({ ticker, historyData, isLoading, error }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-gray-900 bg-opacity-90 text-white p-3 rounded border border-gray-700 text-xs shadow-lg">
+        <div className="bg-gray-900 bg-opacity-90 text-white p-3 border border-gray-700 text-xs shadow-lg">
           <p className="font-semibold">{`${new Date(label).toLocaleDateString('sv-SE')}`}</p>
           <div className="flex items-center mt-1">
-            <span className="w-2 h-2 rounded-full bg-primary inline-block mr-1"></span>
+            <span className="w-2 h-2 bg-primary inline-block mr-1"></span>
             <p>{`Stängn: ${formatNumber(data.price)}`}</p>
           </div>
           {data.volume && (
             <div className="flex items-center mt-1">
-              <span className="w-2 h-2 rounded-full bg-gray-400 inline-block mr-1"></span>
+              <span className="w-2 h-2 bg-gray-400 inline-block mr-1"></span>
               <p>{`Volym: ${parseInt(data.volume).toLocaleString('sv-SE')}`}</p>
             </div>
           )}
@@ -58,8 +58,6 @@ const StockChart = ({ ticker, historyData, isLoading, error }) => {
   const priceChange = endPrice - startPrice;
   const percentChange = ((endPrice - startPrice) / startPrice) * 100;
   const chartColor = endPrice >= startPrice ? '#4ADE80' : '#F87171'; // Grön/Röd
-  const chartColorGradient = endPrice >= startPrice ? 
-    'rgba(74, 222, 128, 0.1)' : 'rgba(248, 113, 113, 0.1)'; // Grön/Röd gradient
   
   // Skapa startdatum och slutdatum som formaterade strängar
   const dateFrom = new Date(historyData[0]?.date).toLocaleDateString('sv-SE');

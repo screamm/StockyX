@@ -6,6 +6,18 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss(),
+    tailwindcss({
+      // Explicit TailwindCSS Config
+      config: {
+        darkMode: 'class', // Säkerställ att dark mode använder class-strategi
+        content: ['./src/**/*.{js,jsx,ts,tsx}'], // Alla innehållsfiler
+      }
+    }),
   ],
+  // Disable CSS isolation to prevent scoping issues that might affect dark mode
+  css: {
+    modules: {
+      scopeBehaviour: 'global' // Förhindra isolering som kan påverka dark mode
+    }
+  }
 })

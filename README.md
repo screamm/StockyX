@@ -1,67 +1,140 @@
 # StockyX 📈
 
-![StockyX Logo](https://raw.githubusercontent.com/screamm/StockyX/master/src/assets/react.svg?sanitize=true) <!-- Eller en annan snyggare logotyp om du har -->
+En modern aktiehanteringsplattform för att övervaka, analysera och följa aktiekurser i realtid.
 
-**Aktiemarknaden i realtid (nästan!) - En modern aktieöversikt byggd med React och Vite.**
+![StockyX Screenshot](./images/screenshot1.png)
+*Lägg till en skärmdump av applikationen här*
 
----
+## 🌟 Funktioner
 
-<!-- Lägg in skärmdump här -->
-<!-- Exempel: ![StockyX Skärmdump](docs/images/stockyx-screenshot.png) -->
-
-## ✨ Funktioner
-
-*   **Dynamisk Aktielista:** Se en lista över populära aktier (från OMXS30 och globala marknader).
-*   **Realtidsuppdateringar (begränsat):** Kurser och förändringar uppdateras (med viss fördröjning pga API-begränsningar).
-*   **Sök och Filtrera:** Sök efter aktier på namn eller ticker. Filtrera för att endast visa favoriter.
-*   **Sortering:** Sortera listan baserat på namn, pris, förändring, volym eller börsvärde.
-*   **Favoriter:** Markera aktier som favoriter (sparas lokalt i webbläsaren).
-*   **Detaljerad Vy:** Klicka på en aktie för att se:
-    *   Interaktiv kursgraf (daglig historik).
-    *   Företagsinformation (sektor, bransch, beskrivning).
-    *   Nyckeltal (Börsvärde, P/E, Direktavkastning, 52v Högst/Lägst).
-    *   Senaste nyheterna relaterade till aktien.
-*   **Responsiv Design:** Anpassar sig till olika skärmstorlekar.
-
-## 🛠️ Teknologier
-
-*   **Frontend:** [React](https://reactjs.org/), [Vite](https://vitejs.dev/)
-*   **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
-*   **Diagram:** [Recharts](https://recharts.org/)
-*   **Ikoner:** [Lucide React](https://lucide.dev/)
-*   **Datahämtning:** [Axios](https://axios-http.com/)
-*   **API:er:**
-    *   [Alpha Vantage](https://www.alphavantage.co/) (Aktiekurser, historik, företagsinfo)
-    *   [NewsAPI](https://newsapi.org/) (Nyheter)
-*   **Linting:** [ESLint](https://eslint.org/)
+- **Marknadsöversikt** - Få en snabb överblick över marknadsindex, valutor och dagens vinnare/förlorare
+- **Aktiesökning och filtrering** - Sök och filtrera bland aktier med realtidsprisuppdateringar
+- **Avancerade grafer** - Visualisera historisk data med interaktiva prisgrafik
+- **Detaljerad aktieinformation** - Tillgång till företagsinformation, finansiella nyckeltal och nyheter
+- **Favorithantering** - Spara och följ dina favoritaktier för enkel tillgång
+- **Responsiv design** - Fungerar på desktop, surfplatta och mobil
+- **Mörkt läge** - Bekväm visuell upplevelse för alla ljusförhållanden
 
 ## 🚀 Komma igång
 
-1.  **Klona repot:**
-    ```bash
-    git clone https://github.com/screamm/StockyX.git
-    cd StockyX
-    ```
-2.  **Installera beroenden:**
-    ```bash
-    npm install
-    ```
-3.  **API-nycklar:**
-    *   Du behöver API-nycklar från [Alpha Vantage](https://www.alphavantage.co/support/#api-key) och [NewsAPI](https://newsapi.org/register).
-    *   Öppna filen `src/components/StockApp.jsx`.
-    *   Ersätt platshållarna `YOUR_ALPHA_VANTAGE_KEY` och `YOUR_NEWSAPI_KEY` med dina egna nycklar.
-    *   **VIKTIGT:** För produktion bör API-nycklar hanteras säkrare via miljövariabler (t.ex. med `.env`-filer och `import.meta.env` i Vite).
-4.  **Kör utvecklingsservern:**
-    ```bash
-    npm run dev
-    ```
-5.  Öppna din webbläsare och gå till `http://localhost:5175` (eller den port som anges i terminalen).
+### Förutsättningar
 
-## ⚠️ API-begränsningar
+- Node.js (version 18 eller senare)
+- npm eller yarn
+- API-nycklar för Alpha Vantage och NewsAPI
 
-*   **Alpha Vantage (Gratis):** Har strikta begränsningar (t.ex. 5 anrop per minut, 25 per dag). Applikationen försöker hantera detta med fördröjningar mellan anrop och cachning, men du kan fortfarande nå gränsen vid intensiv användning.
-*   **NewsAPI (Gratis/Developer):** Har också begränsningar på antalet anrop och hur långt tillbaka i tiden du kan söka.
+### Installation
+
+1. Klona repositoryt
+   ```bash
+   git clone https://github.com/ditt-användarnamn/StockyX.git
+   cd StockyX
+   ```
+
+2. Installera beroenden för frontend
+   ```bash
+   npm install
+   ```
+
+3. Installera beroenden för backend
+   ```bash
+   cd server
+   npm install
+   cd ..
+   ```
+
+4. Konfigurera API-nycklar
+   ```bash
+   # Kopiera exempel-konfigurationsfilen
+   cp server/.env.example server/.env
+   
+   # Redigera .env-filen och lägg till dina API-nycklar
+   # ALPHA_VANTAGE_API_KEY=din_alpha_vantage_nyckel
+   # NEWS_API_KEY=din_news_api_nyckel
+   ```
+
+5. Starta utvecklingsservern för backend
+   ```bash
+   cd server
+   npm run dev
+   ```
+
+6. Starta utvecklingsservern för frontend (i ett annat terminalfönster)
+   ```bash
+   npm run dev
+   ```
+
+7. Öppna applikationen i din webbläsare: [http://localhost:5173](http://localhost:5173)
+
+## 🛠️ Teknologier
+
+### Frontend
+- React 18
+- Vite
+- Tailwind CSS
+- Lucide Icons
+- Recharts för grafritning
+- Axios för API-anrop
+
+### Backend
+- Node.js
+- Express
+- Yahoo Finance API
+- Alpha Vantage API
+- NewsAPI
+
+## 📊 API-information
+
+StockyX använder följande API:er:
+
+- **Alpha Vantage** - För aktiedata, företagsinformation och valutakurser
+- **NewsAPI** - För aktie- och företagsrelaterade nyheter
+- **Yahoo Finance** (som fallback) - För ytterligare aktiedata
+
+API-anrop hanteras via en egen backend-proxy för att skydda API-nycklar och implementera cachning.
+
+### Tillgängliga Endpoints
+
+- `/api/quote/:ticker` - Hämtar senaste aktiekurs för en aktie
+- `/api/history/:ticker` - Hämtar historisk prisdata för en aktie
+- `/api/overview/:ticker` - Hämtar företagsinformation
+- `/api/news?q=söksträng` - Hämtar nyheter baserat på söksträng
+- `/api/currency/:fromCurrency/:toCurrency` - Hämtar valutakurser
+- `/api/topmovers` - Hämtar dagens vinnare och förlorare
+
+## 🧩 Projektstruktur
+
+```
+StockyX/
+├── public/             # Statiska filer
+├── server/             # Backend-proxyserver
+│   ├── server.js       # Express-serverimplementation
+│   └── ...
+├── src/                # Frontend-källkod
+│   ├── assets/         # Bilder och statiska tillgångar
+│   ├── components/     # React-komponenter
+│   ├── services/       # API-servicefunktioner
+│   ├── App.jsx         # Huvudapp-komponent
+│   └── ...
+└── ...
+```
+
+## 🤝 Bidra
+
+1. Forka repositoryt
+2. Skapa en feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit dina ändringar (`git commit -m 'Add some amazing feature'`)
+4. Push till branchen (`git push origin feature/amazing-feature`)
+5. Öppna en Pull Request
+
+## 📝 Licens
+
+Distribueras under MIT-licensen. Se `LICENSE`-filen för mer information.
+
+## 📞 Kontakt
+
+Projektlänk: [https://github.com/ditt-användarnamn/StockyX](https://github.com/ditt-användarnamn/StockyX)
 
 ---
 
-*Detta är ett hobbyprojekt för lärande och demonstration.*
+Byggt med ❤️ i Sverige

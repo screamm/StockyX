@@ -1,10 +1,39 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="auto">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React</title>
+    <title>StockyX</title>
+    <script>
+      // Tydligare tema-implementation med data-theme attribut
+      (function() {
+        // Hämta sparad preferens eller använd auto
+        const savedTheme = localStorage.getItem('theme') || 'auto';
+        
+        // Sätt attribut på html-elementet
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        
+        // Om det är 'auto', använd system-preferens för att sätta dark-klass
+        if (savedTheme === 'auto' || !savedTheme) {
+          const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (prefersDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+          console.log('[Prerender] Auto-tema - använder systempreferens:', prefersDark ? 'dark' : 'light');
+        } 
+        // Om specifikt valt tema, applicera korrekt
+        else if (savedTheme === 'dark') {
+          document.documentElement.classList.add('dark');
+          console.log('[Prerender] Dark tema aktiverat via attribut');
+        } else {
+          document.documentElement.classList.remove('dark');
+          console.log('[Prerender] Light tema aktiverat via attribut');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -6,9 +6,9 @@ const NewsFeed = ({ ticker, newsData, isLoading, error }) => {
     return (
       <div className="flex items-center justify-center h-64 text-gray-400">
         <div className="animate-pulse flex flex-col items-center">
-          <div className="h-4 bg-gray-700 rounded w-1/3 mb-4"></div>
-          <div className="h-32 bg-gray-700 rounded w-full mb-2"></div>
-          <div className="h-32 bg-gray-700 rounded w-full"></div>
+          <div className="h-4 bg-gray-700 w-1/3 mb-4"></div>
+          <div className="h-32 bg-gray-700 w-full mb-2"></div>
+          <div className="h-32 bg-gray-700 w-full"></div>
         </div>
       </div>
     );
@@ -61,7 +61,7 @@ const NewsFeed = ({ ticker, newsData, isLoading, error }) => {
       
       <div className="space-y-4">
         {newsData.map(newsItem => (
-          <div key={newsItem.id} className="bg-gray-800/50 p-4 rounded-md shadow-sm border border-gray-700/50 hover:bg-gray-700/50 transition-colors duration-200">
+          <div key={newsItem.id} className="bg-gray-800/50 p-4 shadow-sm border border-gray-700/50 hover:bg-gray-700/50 transition-colors duration-200">
             <a 
               href={newsItem.url} 
               target="_blank" 
