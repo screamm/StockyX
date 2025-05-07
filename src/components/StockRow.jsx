@@ -32,8 +32,8 @@ const StockRow = ({ stockInfo, quote, onSelect, isSelected, isFavorite, onToggle
             <Star size={16} fill={isFavorite ? 'currentColor' : 'none'} />
           </button>
           <div>
-            <div className="font-medium text-gray-900 dark:text-white">{stockInfo.ticker}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 truncate w-32 sm:w-auto">{stockInfo.name}</div>
+            <div className="font-medium text-gray-900 dark:text-white truncate w-32 sm:w-auto">{stockInfo.name}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">{stockInfo.ticker}</div>
           </div>
         </div>
       </td>

@@ -149,9 +149,7 @@ Please ensure your code follows our style guidelines and includes appropriate te
 
 Distributed under the MIT License. See `LICENSE` file for more information.
 
-## 📞 Contact
 
-Project Link: [https://github.com/yourusername/StockyX](https://github.com/yourusername/StockyX)
 
 ---
 
